@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<devices>
+    <device manufacturer="Shared Dreams" model="Oberjein Virtual Synth" private="false">
+        <input-port name="Oberjein MIDI In" />
+        <output-port name="Oberjein MIDI Out" />
+    </device>
+</devices>
