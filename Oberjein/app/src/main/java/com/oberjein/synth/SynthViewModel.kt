@@ -41,6 +41,8 @@ class SynthViewModel : ViewModel() {
     fun clearMidiMappings() { midiMappings.clear(); isMidiLearning = false }
 
     fun onMidiCC(controller: Int, value: Int) {
+        // Reserve All Notes Off so MIDI Learn can never steal the panic command.
+        if (controller == 123) { panic(); return }
         if (isMidiLearning) {
             midiMappings[controller] = midiTarget
             isMidiLearning = false
@@ -53,7 +55,6 @@ class SynthViewModel : ViewModel() {
         } else if (controller == 1) {
             set(P.LFO_PITCH, value.coerceIn(0, 127) / 127f)
         }
-        if (controller == 123) panic()
     }
 
     fun shiftOctave(delta: Int) {
