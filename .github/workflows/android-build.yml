@@ -32,7 +32,7 @@ jobs:
           unzip -q Oberjein-android-project.zip -d extracted
           test -f extracted/Oberjein/app/build.gradle.kts || {
             echo "::error::Expected project at extracted/Oberjein."
-            find extracted -maxdepth 3 -type f | sort
+            find extracted -maxdepth 4 -type f | sort
             exit 1
           }
 
@@ -42,8 +42,20 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # The hosted runner already contains Android command-line tools.
+      # setup-android may fail while requesting the obsolete "tools" package,
+      # so keep its environment setup but do not let that obsolete package stop the build.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        continue-on-error: true
+
+      - name: Verify Android SDK tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "ANDROID_HOME=${ANDROID_HOME:-}"
+          command -v sdkmanager
+          sdkmanager --version
 
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses || true
