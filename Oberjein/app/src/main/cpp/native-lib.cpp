@@ -104,5 +104,17 @@ JNIEXPORT void JNICALL Java_com_oberjein_synth_SynthEngine_nativeAllNotesOff(JNI
 JNIEXPORT void JNICALL Java_com_oberjein_synth_SynthEngine_nativePitchBend(JNIEnv*, jobject, jfloat v) {
     engine()->synth.pitchBend(v);
 }
+JNIEXPORT void JNICALL Java_com_oberjein_synth_SynthEngine_nativeSetFxParam(JNIEnv*, jobject, jint id, jfloat value) {
+    engine()->synth.setFxParam(id, value);
+}
+JNIEXPORT void JNICALL Java_com_oberjein_synth_SynthEngine_nativeFxTapTempo(JNIEnv*, jobject, jfloat bpm) {
+    engine()->synth.fxTapTempo(bpm);
+}
+JNIEXPORT void JNICALL Java_com_oberjein_synth_SynthEngine_nativeFxHold(JNIEnv*, jobject, jboolean enabled) {
+    engine()->synth.fxHold(enabled == JNI_TRUE);
+}
+JNIEXPORT void JNICALL Java_com_oberjein_synth_SynthEngine_nativeFxLooperCommand(JNIEnv*, jobject, jint command) {
+    engine()->synth.fxLooperCommand(command);
+}
 
 }  // extern "C"
