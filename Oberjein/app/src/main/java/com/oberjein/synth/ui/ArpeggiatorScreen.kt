@@ -113,6 +113,7 @@ fun ArpeggiatorScreen(vm: SynthViewModel) {
                         vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it[index] = route.copy(source = nextSource) }) }
                     }, colors = ButtonDefaults.buttonColors(containerColor = WalnutDark), modifier = Modifier.weight(0.34f)) { Text(route.source, fontSize = 8.sp) }
                     Text(arpTargets.firstOrNull { it.first == route.target }?.second ?: "PARAM ${route.target}", color = Cream, fontSize = 9.sp, modifier = Modifier.weight(0.40f))
+                    Button(onClick = { vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it[index] = route.copy(bipolar = !route.bipolar) }) } }, colors = ButtonDefaults.buttonColors(containerColor = WalnutDark)) { Text(if (route.bipolar) "BI" else "UNI", fontSize = 8.sp) }
                     Text("${(route.amount*100).toInt()}%", color = Cream, fontSize = 9.sp)
                     Button(onClick = { vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it.removeAt(index) }) } }) { Text("×") }
                 }
