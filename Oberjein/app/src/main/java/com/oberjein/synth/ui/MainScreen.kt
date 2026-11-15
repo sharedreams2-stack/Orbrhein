@@ -13,6 +13,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -71,8 +75,16 @@ private fun T(vm: SynthViewModel, id: Int, label: String) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MainScreen(vm: SynthViewModel) {
+    if (vm.showArp) { ArpeggiatorScreen(vm); return }
+    val context = LocalContext.current
+    val exportState = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(vm.exportStateJson()) } }
+    }
+    val importState = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { vm.restoreStateJson(it.readText()) } }
+    }
     Column(Modifier.fillMaxSize().background(Chassis).padding(horizontal = 8.dp, vertical = 6.dp)) {
-        TopBar(vm)
+        TopBar(vm, onExport = { exportState.launch("Oberjein-backup.json") }, onImport = { importState.launch(arrayOf("application/json", "text/*")) })
         Row(Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Column(Modifier.weight(0.19f).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 BrandPanel(Modifier.weight(0.36f))
@@ -216,7 +228,7 @@ private fun BrandPanel(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TopBar(vm: SynthViewModel) {
+private fun TopBar(vm: SynthViewModel, onExport: () -> Unit, onImport: () -> Unit) {
     Row(Modifier.fillMaxWidth().background(Panel).padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("OBERJEIN", color = Cream, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
         Spacer(Modifier.weight(1f))
@@ -228,6 +240,11 @@ private fun TopBar(vm: SynthViewModel) {
         BarButton("−") { vm.shiftOctave(-1) }
         Text("OCT " + vm.octave, color = Cream, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         BarButton("+") { vm.shiftOctave(1) }
+        BarButton("UNDO") { vm.undo() }
+        BarButton("REDO") { vm.redo() }
+        BarButton("EXPORT") { onExport() }
+        BarButton("IMPORT") { onImport() }
+        BarButton("SUPER ARP") { vm.setArpPage(true) }
         BarButton("PANIC") { vm.panic() }
     }
 }
