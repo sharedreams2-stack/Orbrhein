@@ -11,6 +11,8 @@ object MidiBridge {
     private val main = Handler(Looper.getMainLooper())
 
     fun attach(vm: SynthViewModel) { viewModel = vm }
+    fun currentViewModel(): SynthViewModel? = viewModel
+    fun stopPlayback() { viewModel?.let { it.pauseArpeggiator(); it.panic() } }
     fun detach(vm: SynthViewModel) { if (viewModel === vm) viewModel = null }
     fun setOutputs(receivers: Array<MidiReceiver>) { outputs = receivers }
 
