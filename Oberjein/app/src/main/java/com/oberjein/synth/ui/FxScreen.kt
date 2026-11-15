@@ -99,9 +99,7 @@ fun FxScreen(vm: SynthViewModel) {
                 Text("%.1f BPM".format(v[FxP.TEMPO]), color = ElectricBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 FxButton("TAP TEMPO") { vm.tapFxTempo() }
             }
-            FxSlider("GLOBAL TEMPO", ((v[FxP.TEMPO] - 30f) / 270f).coerceIn(0f,1f), 0f..1f, {
-                vm.setFx(FxP.TEMPO, 30f + it * 270f)
-            }, "%.1f BPM", 30f + v[FxP.TEMPO] * 0f)
+            FxSlider("GLOBAL TEMPO", v[FxP.TEMPO], 30f..300f, { vm.setFx(FxP.TEMPO, it) }, "%.1f BPM")
             FxSwitch("TEMPO MODE • FIXED EIGHTH NOTE", v[FxP.TEMPO_MODE] > 0.5f) {
                 vm.setFx(FxP.TEMPO_MODE, if (it) 1f else 0f)
             }
@@ -135,15 +133,24 @@ fun FxScreen(vm: SynthViewModel) {
                 }
             }
             Text(vm.fxUserPresets[userSlot].name, color = ElectricBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("NAME", color = Cream, fontSize = 8.sp)
+                androidx.compose.material3.OutlinedTextField(
+                    value = presetName, onValueChange = { presetName = it.take(20) },
+                    modifier = Modifier.weight(1f).height(54.dp), singleLine = true,
+                    placeholder = { Text("USER ${(userSlot+1).toString().padStart(2, '0')}", fontSize = 9.sp) }
+                )
+            }
             FxLine("ACTIONS") {
                 FxButton("LOAD") { vm.loadFxUserPreset(userSlot) }
                 FxButton("SAVE CURRENT") { vm.saveFxUserPreset(userSlot, presetName.ifBlank { "USER ${(userSlot+1).toString().padStart(2, '0')}" }) }
                 FxButton("FACTORY 44") { vm.selectFxEffect(effect, variation) }
             }
+            Text("Slots store effect parameters. The active Phrase Looper is a shared performance buffer, not copied into each user slot.", color = Color.LightGray, fontSize = 8.sp)
         }
 
         FxPanel("GLOBAL CONFIGURATION") {
-            FxChoice("OUTPUT", listOf("MONO / MONO", "MONO / STEREO", "STEREO / STEREO", "STEREO / MONO"), (v[FxP.STEREO_MODE] * 3f).toInt().coerceIn(0,3)) {
+            FxChoice("OUTPUT ROUTING", listOf("MONO", "STEREO", "WIDE", "MONO SUM"), (v[FxP.STEREO_MODE] * 3f).toInt().coerceIn(0,3)) {
                 vm.setFx(FxP.STEREO_MODE, it / 3f)
             }
             FxChoice("BYPASS", listOf("BUFFERED", "TRAILS", "SOFT BYPASS"), (v[FxP.BYPASS_MODE] * 2f).toInt().coerceIn(0,2)) {
