@@ -83,6 +83,7 @@ fun MainScreen(vm: SynthViewModel) {
         if (uri != null) runCatching { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { vm.restoreStateJson(it.readText()) } }
     }
     if (vm.showArp) { ArpeggiatorScreen(vm); return }
+    if (vm.showFx) { FxScreen(vm); return }
     Column(Modifier.fillMaxSize().background(Chassis).padding(horizontal = 8.dp, vertical = 6.dp)) {
         TopBar(vm, onExport = { exportState.launch("Oberjein-backup.json") }, onImport = { importState.launch(arrayOf("application/json", "text/*")) })
         Row(Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -245,6 +246,7 @@ private fun TopBar(vm: SynthViewModel, onExport: () -> Unit, onImport: () -> Uni
         BarButton("EXPORT") { onExport() }
         BarButton("IMPORT") { onImport() }
         BarButton("SUPER ARP") { vm.setArpPage(true) }
+        BarButton("FX") { vm.setFxPage(true) }
         BarButton("PANIC") { vm.panic() }
     }
 }
