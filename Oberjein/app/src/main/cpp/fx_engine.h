@@ -81,7 +81,8 @@ public:
             holdActive_ = holdRequest;
             if (holdActive_) {
                 holdLength_ = std::clamp(static_cast<size_t>(sr_ * (0.25f + 1.25f * param(ACTIVITY))), size_t(256), holdL_.size() - 1);
-                holdRead_ = holdWrite_;
+                holdStart_ = (holdWrite_ + holdL_.size() - holdLength_) % holdL_.size();
+                holdRead_ = 0;
             } else {
                 holdLength_ = 0;
             }
@@ -240,10 +241,10 @@ public:
         wetR = wetR * (1.0f - reverbAmount) + (revR * 0.25f) * reverbAmount;
 
         if (holdActive_ && holdLength_ > 0) {
-            const size_t i = (holdRead_ + holdL_.size() - holdLength_) % holdL_.size();
+            const size_t i = (holdStart_ + holdRead_) % holdL_.size();
             wetL += holdL_[i] * activity * 0.35f;
             wetR += holdR_[i] * activity * 0.35f;
-            holdRead_ = (holdRead_ + 1) % holdL_.size();
+            holdRead_ = (holdRead_ + 1) % holdLength_;
         }
 
         const int bypass = std::clamp(static_cast<int>(std::lround(param(BYPASS_MODE) * 2.0f)), 0, 2);
@@ -319,7 +320,7 @@ private:
     std::array<std::atomic<float>, FX_PARAM_COUNT> params_{};
     float sr_ = 48000.0f;
     std::vector<float> delayL_, delayR_, holdL_, holdR_, loopL_, loopR_;
-    size_t delayWrite_ = 0, holdWrite_ = 0, holdRead_ = 0, holdLength_ = 0;
+    size_t delayWrite_ = 0, holdWrite_ = 0, holdStart_ = 0, holdRead_ = 0, holdLength_ = 0;
     std::atomic<bool> holdRequest_{false};
     bool holdActive_ = false;
     size_t loopWrite_ = 0, loopRead_ = 0, loopDubRemaining_ = 0, loopFadeRemaining_ = 0, loopFadeTotal_ = 1;
