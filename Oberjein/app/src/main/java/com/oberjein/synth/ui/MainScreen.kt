@@ -31,6 +31,9 @@ import kotlin.math.max
 import java.util.Locale
 
 private val LFO_SHAPES = listOf("SINE", "TRI", "SAW", "SQUARE", "S&H")
+private val VOICE_OPTIONS = (1..16).map { it.toString().padStart(2, '0') }
+private val LEGATO_OPTIONS = listOf("OFF", "KEEP F", "KEEP A", "KEEP ALL")
+private val VAM_OPTIONS = listOf("LAST", "LOW")
 
 @Composable
 private fun K(vm: SynthViewModel, id: Int, label: String) {
@@ -77,6 +80,19 @@ fun MainScreen(vm: SynthViewModel) {
                         K(vm, P.SPREAD, "SPREAD")
                         K(vm, P.UNI_DETUNE, "UNI DETUNE")
                         T(vm, P.UNISON, "UNISON")
+                        CycleButton("VOICES", VOICE_OPTIONS, (vm.values[P.VOICE_COUNT] * 15f).roundToInt().coerceIn(0, 15)) {
+                            vm.set(P.VOICE_COUNT, it / 15f)
+                        }
+                        CycleButton("UNI VOICES", VOICE_OPTIONS, (vm.values[P.UNI_VOICES] * 15f).roundToInt().coerceIn(0, 15)) {
+                            vm.set(P.UNI_VOICES, it / 15f)
+                        }
+                        CycleButton("VAM", VAM_OPTIONS, if (vm.values[P.VAM] > 0.5f) 1 else 0) {
+                            vm.set(P.VAM, it.toFloat())
+                        }
+                        T(vm, P.PERSISTENT_VOICING, "PERSIST")
+                        CycleButton("LEGATO", LEGATO_OPTIONS, (vm.values[P.LEGATO] * 3f).roundToInt().coerceIn(0, 3)) {
+                            vm.set(P.LEGATO, it / 3f)
+                        }
                         K(vm, P.PORTA, "GLIDE")
                     }
                 }
