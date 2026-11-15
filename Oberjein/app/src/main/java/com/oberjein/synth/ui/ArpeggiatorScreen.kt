@@ -117,9 +117,16 @@ fun ArpeggiatorScreen(vm: SynthViewModel) {
                     Button(onClick = { vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it.removeAt(index) }) } }) { Text("×") }
                 }
             }
-            ArpChoice("ADD DESTINATION", arpTargets.map { it.second }, 0) { targetIndex ->
-                val target = arpTargets[targetIndex].first
-                vm.updateArp { c -> c.copy(routes = c.routes + ArpModRoute("STEP", target, 0.25f, true)) }
+            var newRouteTarget by remember { mutableIntStateOf(0) }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("NEW DESTINATION", color = Cream, fontSize = 9.sp)
+                Button(onClick = { newRouteTarget = (newRouteTarget + 1) % arpTargets.size }, colors = ButtonDefaults.buttonColors(containerColor = WalnutDark)) {
+                    Text(arpTargets[newRouteTarget].second, fontSize = 8.sp)
+                }
+                Button(onClick = {
+                    val target = arpTargets[newRouteTarget].first
+                    if (cfg.routes.none { it.target == target }) vm.updateArp { c -> c.copy(routes = c.routes + ArpModRoute("STEP", target, 0.25f, true)) }
+                }) { Text("ADD ROUTE") }
             }
             cfg.routes.forEachIndexed { index, route ->
                 ArpSlider("ROUTE ${index+1} AMOUNT", route.amount, -1f..1f, { amount -> vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it[index] = route.copy(amount = amount) }) } }, "%+.2f", 1f)
