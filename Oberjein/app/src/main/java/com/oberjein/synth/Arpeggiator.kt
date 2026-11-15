@@ -65,9 +65,9 @@ class Arpeggiator(
     private var generation = 0
     private var activeNotes = mutableSetOf<Int>()
 
-    fun configure(value: ArpConfig) {
+    fun configure(value: ArpConfig, autoStart: Boolean = true) {
         config = value.copy(steps = value.steps.take(64).let { it + List(max(0, 64-it.size)) { ArpStep() } })
-        if (!config.enabled && running) stop() else if (config.enabled && !running) start()
+        if (!config.enabled && running) stop() else if (config.enabled && !running && autoStart) start()
     }
 
     fun noteOn(note: Int, velocity: Float) {
@@ -119,7 +119,8 @@ class Arpeggiator(
 
     private fun playStep() {
         modulatedTargets.forEach { onModulation(it, 0f) }
-        val pool = (if (config.hold) latched else held).toList().sorted()
+        val rawPool = (if (config.hold) latched else held).toList()
+        val pool = if (config.direction == ArpDirection.AS_PLAYED) rawPool else rawPool.sorted()
         val notes = if (pool.isEmpty()) emptyList() else expandNotes(pool)
         if (notes.isNotEmpty()) {
             val step = config.steps[stepIndex.coerceIn(0, 63)]
