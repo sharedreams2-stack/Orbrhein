@@ -34,6 +34,8 @@ private val LFO_SHAPES = listOf("SINE", "TRI", "SAW", "SQUARE", "S&H")
 private val VOICE_OPTIONS = (1..16).map { it.toString().padStart(2, '0') }
 private val LEGATO_OPTIONS = listOf("OFF", "KEEP F", "KEEP A", "KEEP ALL")
 private val VAM_OPTIONS = listOf("LAST", "LOW")
+private val MIDI_TARGET_IDS = listOf(P.CUTOFF, P.RESO, P.FINE_TUNE, P.TRANSPOSE, P.OVERSAMPLING, P.LFO_RATE, P.LFO_PITCH, P.LFO_FILTER, P.PWM, P.VOLUME)
+private val MIDI_TARGET_OPTIONS = listOf("CUTOFF", "RESONANCE", "FINE TUNE", "TRANSPOSE", "OVERSAMPLE", "LFO RATE", "LFO PITCH", "LFO FILTER", "PW", "VOLUME")
 
 @Composable
 private fun K(vm: SynthViewModel, id: Int, label: String) {
@@ -53,6 +55,8 @@ private fun K(vm: SynthViewModel, id: Int, label: String) {
         P.UNI_DETUNE -> String.format(Locale.US, "%.1f ct", value * 30f)
         P.LFO_RATE, P.LFO2_RATE -> String.format(Locale.US, "%.2f Hz", 0.1 * 300.0.pow(value.toDouble()))
         P.PORTA -> if (value < 0.01f) "OFF" else String.format(Locale.US, "%.0f ms", 10.0 * 300.0.pow(value.toDouble()))
+        P.TRANSPOSE -> String.format(Locale.US, "%+d OCT", ((value - 0.5f) * 8f).roundToInt())
+        P.FINE_TUNE -> String.format(Locale.US, "%+.1f ct", (value - 0.5f) * 200f)
         else -> String.format(Locale.US, "%.0f%%", value * 100f)
     }
     Knob(label, value, { vm.set(id, it) }, readout = readout)
@@ -94,6 +98,22 @@ fun MainScreen(vm: SynthViewModel) {
                             vm.set(P.LEGATO, it / 3f)
                         }
                         K(vm, P.PORTA, "GLIDE")
+                        CycleButton("OVERSAMPLE", listOf("1X", "2X", "4X"),
+                            (vm.values[P.OVERSAMPLING] * 2f).roundToInt().coerceIn(0, 2)) {
+                            vm.set(P.OVERSAMPLING, it / 2f)
+                        }
+                        K(vm, P.TRANSPOSE, "TRANSPOSE")
+                        K(vm, P.FINE_TUNE, "FINE TUNE")
+                        CycleButton("MIDI TARGET", MIDI_TARGET_OPTIONS,
+                            MIDI_TARGET_IDS.indexOf(vm.midiTarget).coerceAtLeast(0)) {
+                            vm.selectMidiTarget(MIDI_TARGET_IDS[it])
+                        }
+                        BarButton(if (vm.isMidiLearning) "WAIT MIDI" else "MIDI LEARN") {
+                            vm.beginMidiLearn()
+                        }
+                        BarButton("CLEAR CC") { vm.clearMidiMappings() }
+                        Text(if (vm.isMidiLearning) "MOVE A CONTROLLER" else "CC ${vm.midiMappings.size} MAPPED",
+                            color = ElectricBlue, fontSize = 7.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
