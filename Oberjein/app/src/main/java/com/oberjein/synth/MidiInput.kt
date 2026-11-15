@@ -73,9 +73,9 @@ class MidiInput(private val context: Context, private val vm: SynthViewModel) {
             val d1 = if (len > 1) msg[i + 1].toInt() and 0x7F else 0
             val d2 = if (len > 2) msg[i + 2].toInt() and 0x7F else 0
             when (kind) {
-                0x90 -> if (d2 > 0) vm.midiNoteOn(d1, d2 / 127f) else vm.midiNoteOff(d1)
-                0x80 -> vm.midiNoteOff(d1)
-                0xE0 -> vm.pitchBend((((d2 shl 7) or d1) - 8192) / 8192f)
+                0x90 -> main.post { if (d2 > 0) vm.midiNoteOn(d1, d2 / 127f) else vm.midiNoteOff(d1) }
+                0x80 -> main.post { vm.midiNoteOff(d1) }
+                0xE0 -> main.post { vm.pitchBend((((d2 shl 7) or d1) - 8192) / 8192f) }
                 0xB0 -> main.post { vm.onMidiCC(d1, d2) }
             }
             i += len
