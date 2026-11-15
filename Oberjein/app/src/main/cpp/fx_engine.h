@@ -29,6 +29,8 @@ public:
         params_[SPACE].store(0.25f);
         params_[LOOP_LEVEL].store(0.7f);
         params_[TEMPO].store(120.0f);
+        params_[FX_MASTER].store(0.8f);
+        params_[LOOP_FADE].store(0.4f);
         params_[ENABLE].store(0.0f);
         params_[BYPASS_MODE].store(0.0f);
     }
@@ -88,6 +90,11 @@ public:
 
         const int command = loopCommand_.exchange(-1, std::memory_order_acq_rel);
         applyLoopCommand(command);
+        const bool enabled = param(ENABLE) > 0.5f;
+        if (!enabled && !loopRecording_ && !loopOverdub_ && !loopPlaying_ && !holdActive_) {
+            delayWrite_ = (delayWrite_ + 1) % delayL_.size();
+            return;
+        }
 
         delayL_[delayWrite_] = dryL;
         delayR_[delayWrite_] = dryR;
@@ -104,7 +111,8 @@ public:
         const int variation = std::clamp(static_cast<int>(std::lround(param(VARIATION) * 3.0f)), 0, 3);
         const float bpm = param(TEMPO);
         const float beat = 60.0f / std::max(30.0f, bpm);
-        const float baseDelay = std::clamp((0.04f + time * time * 1.65f) * sr_, 64.0f, static_cast<float>(delayL_.size() - 4));
+        const float subdivision = param(TEMPO_MODE) > 0.5f ? 0.5f : std::pow(2.0f, -5.0f + time * 8.0f);
+        const float baseDelay = std::clamp(beat * subdivision * sr_, 64.0f, static_cast<float>(delayL_.size() - 4));
         const float feedback = std::clamp(0.08f + repeats * 0.86f, 0.08f, 0.94f);
 
         float wetL = dryL, wetR = dryR;
@@ -234,13 +242,15 @@ public:
             holdRead_ = (holdRead_ + 1) % holdL_.size();
         }
 
-        const bool enabled = param(ENABLE) > 0.5f;
         const int bypass = std::clamp(static_cast<int>(std::lround(param(BYPASS_MODE) * 2.0f)), 0, 2);
         const float mix = enabled ? param(MIX) : (bypass == 1 && param(TRAILS) > 0.5f ? bypassFade_ : 0.0f);
         if (!enabled && bypass == 1) bypassFade_ = std::max(0.0f, bypassFade_ - 0.0002f);
         else if (enabled) bypassFade_ = 1.0f;
-        float outL = dryL * (1.0f - mix) + wetL * mix;
-        float outR = dryR * (1.0f - mix) + wetR * mix;
+        const float effectMaster = param(FX_MASTER);
+        float outL = (dryL * (1.0f - mix) + wetL * mix) * effectMaster;
+        float outR = (dryR * (1.0f - mix) + wetR * mix) * effectMaster;
+        const int stereoMode = std::clamp(static_cast<int>(std::lround(param(STEREO_MODE) * 3.0f)), 0, 3);
+        if (stereoMode == 0 || stereoMode == 3) { const float mono = 0.5f * (outL + outR); outL = mono; outR = mono; }
 
         if (loopRecording_ || loopOverdub_) {
             if (loopWrite_ < loopL_.size()) {
