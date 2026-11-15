@@ -77,6 +77,8 @@ class SynthViewModel : ViewModel() {
     fun setArpPage(show: Boolean) { showArp = show; if (show) showFx = false }
     fun setFxPage(show: Boolean) { showFx = show; if (show) showArp = false }
 
+    fun pushFxAll() = fxValues.forEachIndexed { id, value -> SynthEngine.nativeSetFxParam(id, value) }
+
     fun setFx(id: Int, value: Float) {
         if (id !in fxValues.indices) return
         val v = if (id == FxP.TEMPO) value.coerceIn(30f, 300f) else value.coerceIn(0f, 1f)
@@ -89,6 +91,11 @@ class SynthViewModel : ViewModel() {
         val preset = FX_FACTORY_PRESETS[index]
         remember()
         preset.values.forEachIndexed { id, value -> fxValues[id] = value; SynthEngine.nativeSetFxParam(id, value) }
+        val effectValue = effect.coerceIn(0, 10) / 10f
+        val variationValue = variation.coerceIn(0, 3) / 3f
+        fxValues[FxP.EFFECT] = effectValue; fxValues[FxP.VARIATION] = variationValue
+        SynthEngine.nativeSetFxParam(FxP.EFFECT, effectValue)
+        SynthEngine.nativeSetFxParam(FxP.VARIATION, variationValue)
     }
 
     fun tapFxTempo(now: Long = android.os.SystemClock.elapsedRealtime()) {
