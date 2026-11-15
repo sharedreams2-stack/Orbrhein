@@ -111,7 +111,7 @@ public:
         const int variation = std::clamp(static_cast<int>(std::lround(param(VARIATION) * 3.0f)), 0, 3);
         const float bpm = param(TEMPO);
         const float beat = 60.0f / std::max(30.0f, bpm);
-        const float subdivision = param(TEMPO_MODE) > 0.5f ? 0.5f : std::pow(2.0f, -5.0f + time * 8.0f);
+        const float subdivision = param(TEMPO_MODE) > 0.5f ? 0.5f : std::pow(2.0f, -5.0f + time * 7.0f);
         const float baseDelay = std::clamp(beat * subdivision * sr_, 64.0f, static_cast<float>(delayL_.size() - 4));
         const float feedback = std::clamp(0.08f + repeats * 0.86f, 0.08f, 0.94f);
 
@@ -243,7 +243,7 @@ public:
         }
 
         const int bypass = std::clamp(static_cast<int>(std::lround(param(BYPASS_MODE) * 2.0f)), 0, 2);
-        const float mix = enabled ? param(MIX) : (bypass == 1 && param(TRAILS) > 0.5f ? bypassFade_ : 0.0f);
+        const float mix = (enabled || holdActive_) ? param(MIX) : (bypass == 1 && param(TRAILS) > 0.5f ? bypassFade_ : 0.0f);
         if (!enabled && bypass == 1) bypassFade_ = std::max(0.0f, bypassFade_ - 0.0002f);
         else if (enabled) bypassFade_ = 1.0f;
         const float effectMaster = param(FX_MASTER);
