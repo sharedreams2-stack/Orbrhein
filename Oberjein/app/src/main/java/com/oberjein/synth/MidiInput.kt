@@ -15,6 +15,7 @@ class MidiInput(private val context: Context, private val vm: SynthViewModel) {
     private val main = Handler(Looper.getMainLooper())
     private var manager: MidiManager? = null
     private val devices = mutableListOf<MidiDevice>()
+    private val openedIds = mutableSetOf<Int>()
     private val ports = mutableListOf<MidiOutputPort>()
 
     private val deviceCallback = object : MidiManager.DeviceCallback() {
@@ -43,10 +44,14 @@ class MidiInput(private val context: Context, private val vm: SynthViewModel) {
         devices.forEach { runCatching { it.close() } }
         ports.clear()
         devices.clear()
+        openedIds.clear()
     }
 
     private fun open(info: MidiDeviceInfo) {
-        if (info.outputPortCount == 0) return
+        val props = info.properties
+        if (props.getString(MidiDeviceInfo.PROPERTY_MANUFACTURER) == "Shared Dreams" &&
+            props.getString(MidiDeviceInfo.PROPERTY_PRODUCT) == "Oberjein Virtual Synth") return
+        if (info.outputPortCount == 0 || !openedIds.add(info.id)) return
         manager?.openDevice(info, { device ->
             if (device != null) {
                 val port = device.openOutputPort(0)
@@ -56,7 +61,10 @@ class MidiInput(private val context: Context, private val vm: SynthViewModel) {
                     devices += device
                 } else {
                     device.close()
+                    openedIds.remove(info.id)
                 }
+            } else {
+                openedIds.remove(info.id)
             }
         }, main)
     }
