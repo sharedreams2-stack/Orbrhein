@@ -24,7 +24,11 @@ class SynthViewModel : ViewModel() {
     private data class Snapshot(val values: List<Float>, val arp: ArpConfig)
     private val undoStack = ArrayDeque<Snapshot>()
     private val redoStack = ArrayDeque<Snapshot>()
-    private val arpeggiator = Arpeggiator({ n, v -> SynthEngine.nativeNoteOn(n, v); MidiBridge.noteOn(n, v) }, { n -> SynthEngine.nativeNoteOff(n); MidiBridge.noteOff(n) })
+    private val arpeggiator = Arpeggiator(
+        { n, v -> SynthEngine.nativeNoteOn(n, v); MidiBridge.noteOn(n, v) },
+        { n -> SynthEngine.nativeNoteOff(n); MidiBridge.noteOff(n) },
+        { id, offset -> if (id in values.indices) SynthEngine.nativeSetParam(id, (values[id] + offset).coerceIn(0f, 1f)) }
+    )
 
     val firstNote: Int get() = 12 * (octave + 1)
 
