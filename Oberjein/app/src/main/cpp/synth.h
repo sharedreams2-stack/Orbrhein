@@ -25,6 +25,7 @@ enum Param : int {
     P_PORTA, P_UNISON, P_UNI_DETUNE, P_VOLUME,
     P_SPREAD, P_XMOD, P_BRIGHT,
     P_FILTER_MIX, P_FILTER_BP, P_LP24, P_FILTER_MULTI, P_FENV_INVERT, P_SELF_OSC,
+    P_LFO2_RATE, P_LFO2_WAVE, P_LFO2_PITCH, P_LFO2_FILTER, P_LFO2_PWM,
     P_COUNT
 };
 
@@ -168,6 +169,7 @@ private:
         float l1 = 0, l2 = 0, ln = 0, semi2 = 0, det2 = 0, pwBase = 0.5f;
         float cutOct = 0, k = 0, fenvAmt = 0, keytrack = 0;
         float lfoPitch = 0, lfoFilter = 0, lfoPwm = 0;
+        float lfo2Pitch = 0, lfo2Filter = 0, lfo2Pwm = 0;
         float xmod = 0.0f, bright = 0.0f, spread = 0.0f, uniSpread = 0.0f;
         float filterMix = 0.0f, multi = 0.0f, fenvInvert = 0.0f, selfOsc = 0.0f;
         float glide = 1.0f, volume = 0, master = 0.4f;
@@ -207,6 +209,7 @@ private:
         q.fenvAmt = P(P_FENV_AMT);
         q.keytrack = P(P_KEYTRACK);
         q.lfoPitch = P(P_LFO_PITCH); q.lfoFilter = P(P_LFO_FILTER); q.lfoPwm = P(P_LFO_PWM);
+        q.lfo2Pitch = P(P_LFO2_PITCH); q.lfo2Filter = P(P_LFO2_FILTER); q.lfo2Pwm = P(P_LFO2_PWM);
         const float gt = P(P_PORTA) < 0.01f ? 0.0f : 0.01f * std::pow(300.0f, P(P_PORTA));
         q.glide = gt <= 0.0f ? 1.0f : 1.0f - std::exp(-kCtrlRate / (sr_ * gt / 3.0f));
         q.uniSpread = P(P_UNI_DETUNE) * 30.0f;
@@ -226,20 +229,33 @@ private:
             default: lfo_ = shValue_; break;
         }
 
+        // Independent second LFO; both modulators run continuously in parallel.
+        lfo2Phase_ += 0.1f * std::pow(300.0f, P(P_LFO2_RATE)) * kCtrlRate / sr_;
+        if (lfo2Phase_ >= 1.0f) { lfo2Phase_ -= std::floor(lfo2Phase_); shValue2_ = noise(); }
+        switch (static_cast<int>(std::lround(P(P_LFO2_WAVE) * 4.0f))) {
+            case 0: lfo2_ = std::sin(2.0f * kPi * lfo2Phase_); break;
+            case 1: lfo2_ = 1.0f - 4.0f * std::fabs(lfo2Phase_ - 0.5f); break;
+            case 2: lfo2_ = 2.0f * lfo2Phase_ - 1.0f; break;
+            case 3: lfo2_ = lfo2Phase_ < 0.5f ? 1.0f : -1.0f; break;
+            default: lfo2_ = shValue2_; break;
+        }
+
         const float maxF = 0.45f * sr_;
         for (auto& v : voices_) {
             if (!v.active()) continue;
             v.curSemi += (v.tgtSemi - v.curSemi) * q.glide;
-            const float vib = lfo_ * q.lfoPitch * q.lfoPitch * 2.0f;
+            const float vib = lfo_ * q.lfoPitch * q.lfoPitch * 2.0f
+                            + lfo2_ * q.lfo2Pitch * q.lfo2Pitch * 2.0f;
             const float base = v.curSemi + bend_ * 2.0f + vib;
             const float f1 = 440.0f * std::exp2((base - 69.0f + (v.drift1 + v.uniCents) / 100.0f) / 12.0f);
             const float f2 = 440.0f * std::exp2((base + q.semi2 - 69.0f + (q.det2 + v.drift2 + v.uniCents) / 100.0f) / 12.0f);
             v.dt1 = std::min(f1, maxF) / sr_;
             v.dt2 = std::min(f2, maxF) / sr_;
-            v.pw = std::clamp(q.pwBase + 0.4f * lfo_ * q.lfoPwm, 0.05f, 0.95f);
+            v.pw = std::clamp(q.pwBase + 0.4f * (lfo_ * q.lfoPwm + lfo2_ * q.lfo2Pwm), 0.05f, 0.95f);
             const float envValue = q.fenvInvert > 0.5f ? -v.fenv.level : v.fenv.level;
             const float oct = q.cutOct + q.fenvAmt * envValue * 6.0f
-                            + q.keytrack * (base - 60.0f) / 12.0f + q.lfoFilter * lfo_ * 2.0f;
+                            + q.keytrack * (base - 60.0f) / 12.0f + q.lfoFilter * lfo_ * 2.0f
+                            + q.lfo2Filter * lfo2_ * 2.0f;
             const float fc = std::clamp(20.0f * std::exp2(oct), 20.0f, 0.49f * sr_);
             v.g = std::tan(kPi * fc / (2.0f * sr_));
         }
@@ -399,7 +415,8 @@ private:
     std::array<int, 16> stack_{};
     int stackSize_ = 0;
     Snap q_;
-    float sr_ = 48000.0f, volSm_ = 0.0f, lfoPhase_ = 0.0f, lfo_ = 0.0f, shValue_ = 0.0f, bend_ = 0.0f;
+    float sr_ = 48000.0f, volSm_ = 0.0f, lfoPhase_ = 0.0f, lfo_ = 0.0f, shValue_ = 0.0f;
+    float lfo2Phase_ = 0.0f, lfo2_ = 0.0f, shValue2_ = 0.0f, bend_ = 0.0f;
     int ctrl_ = 0;
     uint64_t counter_ = 0;
     uint32_t rng_ = 22222u;
