@@ -228,7 +228,7 @@ public:
         wetR = wetR * (1.0f - reverbAmount) + (revR * 0.25f) * reverbAmount;
 
         if (holdActive_ && holdLength_ > 0) {
-            const size_t i = (holdRead_ + holdL_.size() - (holdRead_ >= holdLength_ ? holdLength_ : holdRead_ + holdL_.size() - holdLength_)) % holdL_.size();
+            const size_t i = (holdRead_ + holdL_.size() - holdLength_) % holdL_.size();
             wetL += holdL_[i] * activity * 0.35f;
             wetR += holdR_[i] * activity * 0.35f;
             holdRead_ = (holdRead_ + 1) % holdL_.size();
@@ -247,11 +247,13 @@ public:
                 if (loopOverdub_ && loopLength_ > 0) {
                     loopL_[loopWrite_] = loopL_[loopWrite_] * 0.75f + outL * 0.5f;
                     loopR_[loopWrite_] = loopR_[loopWrite_] * 0.75f + outR * 0.5f;
+                    loopWrite_ = (loopWrite_ + 1) % loopLength_;
+                    if (loopDubRemaining_ > 0 && --loopDubRemaining_ == 0) loopOverdub_ = false;
                 } else {
                     loopL_[loopWrite_] = outL; loopR_[loopWrite_] = outR;
+                    ++loopWrite_;
+                    if (loopRecording_ && loopWrite_ >= loopL_.size()) finishRecording();
                 }
-                ++loopWrite_;
-                if (loopRecording_ && loopWrite_ >= loopL_.size()) finishRecording();
             }
         }
         if (loopPlaying_ && loopLength_ > 0) {
@@ -287,7 +289,7 @@ private:
             case LOOP_STOP: loopPlaying_ = false; loopRecording_ = false; loopOverdub_ = false; break;
             case LOOP_RECORD: loopWrite_ = 0; loopLength_.store(0); loopRecording_ = true; loopOverdub_ = false; loopPlaying_ = false; break;
             case LOOP_PLAY: loopRead_ = 0; loopRecording_ = false; loopPlaying_ = loopLength_ > 0; loopOverdub_ = false; break;
-            case LOOP_DUB: if (loopLength_ > 0) { loopWrite_ = loopRead_; loopRecording_ = false; loopPlaying_ = true; loopOverdub_ = true; } break;
+            case LOOP_DUB: if (loopLength_ > 0) { loopWrite_ = 0; loopDubRemaining_ = loopLength_; loopRecording_ = false; loopPlaying_ = true; loopOverdub_ = true; } break;
             case LOOP_ERASE: loopPlaying_ = loopRecording_ = loopOverdub_ = false; loopWrite_ = loopRead_ = 0; loopLength_.store(0); break;
         }
     }
@@ -298,7 +300,7 @@ private:
     size_t delayWrite_ = 0, holdWrite_ = 0, holdRead_ = 0, holdLength_ = 0;
     std::atomic<bool> holdRequest_{false};
     bool holdActive_ = false;
-    size_t loopWrite_ = 0, loopRead_ = 0;
+    size_t loopWrite_ = 0, loopRead_ = 0, loopDubRemaining_ = 0;
     std::atomic<size_t> loopLength_{0};
     bool loopRecording_ = false, loopPlaying_ = false, loopOverdub_ = false;
     std::atomic<int> loopCommand_{-1};
