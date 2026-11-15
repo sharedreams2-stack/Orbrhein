@@ -117,7 +117,8 @@ class SynthViewModel : ViewModel() {
         fxLoopState = when (command) {
             1 -> if (fxLoopState == 1) 2 else 1
             2 -> 2
-            3 -> 3
+            3 -> if (fxLoopState == 3) 2 else 3
+            0 -> if (fxLoopState == 1) 2 else 0
             else -> 0
         }
     }
