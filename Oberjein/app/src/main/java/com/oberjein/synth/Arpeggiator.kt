@@ -65,6 +65,8 @@ class Arpeggiator(
     private var running = false
     private var generation = 0
     private var activeNotes = mutableSetOf<Int>()
+    // A newer trigger of the same pitch invalidates the previous delayed note-off.
+    private val noteTokens = mutableMapOf<Int, Int>()
 
     fun configure(value: ArpConfig, autoStart: Boolean = true) {
         config = value.copy(steps = value.steps.take(64).let { currentSteps -> currentSteps + List((64 - currentSteps.size).coerceAtLeast(0)) { ArpStep() } })
@@ -73,14 +75,30 @@ class Arpeggiator(
 
     fun noteOn(note: Int, velocity: Float) {
         if (config.hold) {
+            // Latch is edge-triggered: a fresh key-down toggles exactly this pitch.
             if (!latched.add(note)) latched.remove(note)
-        } else held.add(note)
+        } else {
+            held.add(note)
+        }
         if (!config.enabled) onNoteOn(note, velocity)
     }
 
     fun noteOff(note: Int) {
         held.remove(note)
-        if (!config.enabled) onNoteOff(note)
+        // In latch mode a physical key-up must not remove the latched pitch.
+        if (!config.enabled && !config.hold) onNoteOff(note)
+    }
+
+    fun setHold(enabled: Boolean) {
+        if (config.hold == enabled) return
+        if (enabled) {
+            // Preserve notes already held when HOLD is enabled.
+            latched.addAll(held)
+        } else {
+            // Leaving latch mode releases the stored notes; physically held notes remain held.
+            latched.clear()
+        }
+        config = config.copy(hold = enabled)
     }
 
     fun panic() {
@@ -103,6 +121,7 @@ class Arpeggiator(
         handler.removeCallbacksAndMessages(null)
         activeNotes.toList().forEach(onNoteOff)
         activeNotes.clear()
+        noteTokens.clear()
         modulatedTargets.forEach { onModulation(it, 0f) }
         modulatedTargets = emptySet()
     }
@@ -164,16 +183,20 @@ class Arpeggiator(
                     val shifted = (n + step.octave * 12).coerceIn(0, 127)
                     val strumStep = (stepMs / chord.size.coerceAtLeast(1)).toLong().coerceAtLeast(0L)
                     val startDelay = chordIndex * minOf(config.strumMs.toLong(), strumStep)
+                    val token = generation
                     handler.postDelayed({
-                        onNoteOn(shifted, (step.velocity).coerceIn(0f, 1f))
-                        activeNotes.add(shifted)
-                        handler.postDelayed({ onNoteOff(shifted); activeNotes.remove(shifted) }, duration)
+                        if (!running || token != generation) return@postDelayed
+                        triggerNote(shifted, step.velocity, duration)
                     }, startDelay)
                 }
                 if (ratchets > 1) {
                     for (r in 1 until ratchets) {
                         val d = (r * max(12.0, stepMs / ratchets)).toLong()
-                        handler.postDelayed({ onNoteOn(pitch, step.velocity); activeNotes.add(pitch); handler.postDelayed({ onNoteOff(pitch); activeNotes.remove(pitch) }, duration) }, d)
+                        val token = generation
+                        handler.postDelayed({
+                            if (!running || token != generation) return@postDelayed
+                            triggerNote(pitch, step.velocity, duration)
+                        }, d)
                     }
                 }
                 noteIndex++
@@ -181,6 +204,21 @@ class Arpeggiator(
         }
         stepIndex = (stepIndex + 1) % config.loopLength.coerceIn(1, 64)
         if (config.randomMode || config.evolve) evolvePattern()
+    }
+
+    private fun triggerNote(note: Int, velocity: Float, durationMs: Long) {
+        val token = (noteTokens[note] ?: 0) + 1
+        noteTokens[note] = token
+        onNoteOn(note, velocity.coerceIn(0f, 1f))
+        activeNotes.add(note)
+        handler.postDelayed({
+            // Ignore stale note-offs when this pitch has already been retriggered.
+            if (noteTokens[note] == token) {
+                onNoteOff(note)
+                activeNotes.remove(note)
+                noteTokens.remove(note)
+            }
+        }, durationMs.coerceAtLeast(12L))
     }
 
     private fun expandNotes(notes: List<Int>): List<Int> {
