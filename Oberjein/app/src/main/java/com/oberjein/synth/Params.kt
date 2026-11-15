@@ -44,7 +44,7 @@ object P {
 /** All values are normalized 0..1 (switches are 0 or 1). The DSP maps them to real units. */
 val DEFAULTS: FloatArray = FloatArray(P.COUNT).also {
     it[P.VCO1_SAW] = 1f; it[P.VCO1_LEVEL] = 0.8f
-    it[P.VCO2_SAW] = 1f; it[P.VCO2_LEVEL] = 0.8f; it[P.VCO2_SEMI] = 0.5f; it[P.VCO2_DETUNE] = 0.55f
+    it[P.VCO2_SAW] = 1f; it[P.VCO2_LEVEL] = 0.8f; it[P.VCO2_SEMI] = 0.5f; it[P.VCO2_DETUNE] = 0.05f
     it[P.PWM] = 0.3f
     it[P.CUTOFF] = 0.65f; it[P.RESO] = 0.15f; it[P.POLES] = 1f; it[P.FENV_AMT] = 0.3f; it[P.KEYTRACK] = 0.5f
     it[P.F_A] = 0.05f; it[P.F_D] = 0.45f; it[P.F_S] = 0.4f; it[P.F_R] = 0.35f
