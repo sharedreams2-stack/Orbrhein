@@ -61,7 +61,6 @@ fun MainScreen(vm: SynthViewModel) {
                 Section("OSCILLATORS", Modifier.weight(0.66f)) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            K(vm, P.VCO1_LEVEL, "OSC 1")
                             T(vm, P.VCO1_SAW, "SAW")
                             T(vm, P.VCO1_PULSE, "PULSE")
                         }
