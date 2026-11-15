@@ -71,6 +71,10 @@ public:
     void process(float& left, float& right) {
         const float dryL = left, dryR = right;
         if (delayL_.empty()) return;
+        const int stereoMode = std::clamp(static_cast<int>(std::lround(param(STEREO_MODE) * 3.0f)), 0, 3);
+        const float monoInput = 0.5f * (dryL + dryR);
+        const float fxInL = (stereoMode == 0 || stereoMode == 1) ? monoInput : dryL;
+        const float fxInR = (stereoMode == 0 || stereoMode == 1) ? monoInput : dryR;
 
         const bool holdRequest = holdRequest_.load(std::memory_order_acquire);
         if (holdRequest != holdActive_) {
@@ -83,8 +87,8 @@ public:
             }
         }
         if (!holdActive_) {
-            holdL_[holdWrite_] = dryL;
-            holdR_[holdWrite_] = dryR;
+            holdL_[holdWrite_] = fxInL;
+            holdR_[holdWrite_] = fxInR;
             holdWrite_ = (holdWrite_ + 1) % holdL_.size();
         }
 
@@ -96,8 +100,8 @@ public:
             return;
         }
 
-        delayL_[delayWrite_] = dryL;
-        delayR_[delayWrite_] = dryR;
+        delayL_[delayWrite_] = fxInL;
+        delayR_[delayWrite_] = fxInR;
 
         const float time = param(TIME);
         const float activity = param(ACTIVITY);
@@ -249,7 +253,6 @@ public:
         const float effectMaster = param(FX_MASTER);
         float outL = (dryL * (1.0f - mix) + wetL * mix) * effectMaster;
         float outR = (dryR * (1.0f - mix) + wetR * mix) * effectMaster;
-        const int stereoMode = std::clamp(static_cast<int>(std::lround(param(STEREO_MODE) * 3.0f)), 0, 3);
         if (stereoMode == 0 || stereoMode == 3) { const float mono = 0.5f * (outL + outR); outL = mono; outR = mono; }
 
         if (loopRecording_ || loopOverdub_) {
