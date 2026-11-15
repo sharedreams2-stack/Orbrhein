@@ -82,23 +82,24 @@ struct Env {
     }
 };
 
-// 4-pole transistor-ladder style low-pass (CEM3320-ish), 2x oversampled.
-struct Ladder {
-    float y1 = 0, y2 = 0, y3 = 0, y4 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0;
-    void reset() { y1 = y2 = y3 = y4 = t1 = t2 = t3 = t4 = 0.0f; }
-    float process(float x, float g, float k, bool fourPole) {
-        const float in = x * (1.0f + 0.25f * k);
-        for (int i = 0; i < 2; ++i) {
-            const float u = fastTanh(in - k * y4);
-            y1 += g * (u - t1);  t1 = fastTanh(y1);
-            y2 += g * (t1 - t2); t2 = fastTanh(y2);
-            y3 += g * (t2 - t3); t3 = fastTanh(y3);
-            y4 += g * (t3 - t4); t4 = fastTanh(y4);
-        }
-        return fourPole ? y4 : y2;
+// TPT state-variable filter: simultaneous LP/BP/HP/Notch outputs.
+struct SemFilter {
+    float ic1 = 0.0f, ic2 = 0.0f;
+    void reset() { ic1 = ic2 = 0.0f; }
+    struct Outputs { float lp, bp, hp, notch; };
+    Outputs process(float x, float g, float damping) {
+        const float a1 = 1.0f / (1.0f + g * (g + damping));
+        const float a2 = g * a1;
+        const float a3 = g * a2;
+        const float v3 = x - ic2;
+        const float band = a1 * ic1 + a2 * v3;
+        const float low = ic2 + a2 * ic1 + a3 * v3;
+        ic1 = 2.0f * band - ic1;
+        ic2 = 2.0f * low - ic2;
+        const float high = x - damping * band - low;
+        return {low, band, high, low + high};
     }
 };
-
 struct Voice {
     int note = -1;
     bool gate = false;
@@ -110,7 +111,7 @@ struct Voice {
     float drift1 = 0.0f, drift2 = 0.0f;
     float gl = 0.7f, gr = 0.7f;
     Env fenv, aenv;
-    Ladder lp;
+    SemFilter filter;
     bool active() const { return aenv.stage != Env::Idle; }
 };
 
@@ -166,7 +167,9 @@ private:
         float cutOct = 0, k = 0, fenvAmt = 0, keytrack = 0;
         float lfoPitch = 0, lfoFilter = 0, lfoPwm = 0;
         float xmod = 0.0f, bright = 0.0f, spread = 0.0f, uniSpread = 0.0f;
-        float glide = 1.0f, spread = 0, volume = 0, master = 0.4f;
+        float filterMix = 0.0f, multi = 0.0f, fenvInvert = 0.0f, selfOsc = 0.0f;
+        float glide = 1.0f, volume = 0, master = 0.4f;
+        bool bp = false, lp24 = false;
         EnvCoef fe{}, ae{};
     };
 
@@ -184,7 +187,10 @@ private:
         Snap& q = q_;
         q.saw1 = P(P_VCO1_SAW) > 0.5f;   q.pulse1 = P(P_VCO1_PULSE) > 0.5f;
         q.saw2 = P(P_VCO2_SAW) > 0.5f;   q.pulse2 = P(P_VCO2_PULSE) > 0.5f;
-        q.sync = P(P_SYNC) > 0.5f;       q.four = P(P_POLES) > 0.5f;
+        q.sync = P(P_SYNC) > 0.5f;       q.lp24 = P(P_LP24) > 0.5f;
+        q.bp = P(P_FILTER_BP) > 0.5f && !q.lp24;
+        q.filterMix = P(P_FILTER_MIX); q.multi = P(P_FILTER_MULTI);
+        q.fenvInvert = P(P_FENV_INVERT); q.selfOsc = P(P_SELF_OSC);
         const bool uni = P(P_UNISON) > 0.5f;
         if (uni != q.unison) { q.unison = uni; releaseAll(); }
         q.l1 = P(P_VCO1_LEVEL); q.l2 = P(P_VCO2_LEVEL); q.ln = P(P_NOISE) * 0.5f;
@@ -195,7 +201,7 @@ private:
         q.spread = P(P_SPREAD) * 8.0f;
         q.pwBase = 0.5f - 0.45f * P(P_PWM);
         q.cutOct = P(P_CUTOFF) * 9.81f;
-        q.k = P(P_RESO) * 4.2f;
+        q.k = P(P_RESO);
         q.fenvAmt = P(P_FENV_AMT);
         q.keytrack = P(P_KEYTRACK);
         q.lfoPitch = P(P_LFO_PITCH); q.lfoFilter = P(P_LFO_FILTER); q.lfoPwm = P(P_LFO_PWM);
@@ -229,10 +235,11 @@ private:
             v.dt1 = std::min(f1, maxF) / sr_;
             v.dt2 = std::min(f2, maxF) / sr_;
             v.pw = std::clamp(q.pwBase + 0.4f * lfo_ * q.lfoPwm, 0.05f, 0.95f);
-            const float oct = q.cutOct + q.fenvAmt * v.fenv.level * 6.0f
+            const float envValue = q.fenvInvert > 0.5f ? (1.0f - v.fenv.level) : v.fenv.level;
+            const float oct = q.cutOct + q.fenvAmt * envValue * 6.0f
                             + q.keytrack * (base - 60.0f) / 12.0f + q.lfoFilter * lfo_ * 2.0f;
             const float fc = std::clamp(20.0f * std::exp2(oct), 20.0f, 0.49f * sr_);
-            v.g = 1.0f - std::exp(-2.0f * kPi * fc / (2.0f * sr_));
+            v.g = std::tan(kPi * fc / (2.0f * sr_));
         }
     }
 
@@ -244,7 +251,7 @@ private:
     float tickVoice(Voice& v) {
         v.fenv.tick(q_.fe);
         const float ae = v.aenv.tick(q_.ae);
-        if (!v.active()) { v.lp.reset(); v.note = -1; v.gate = false; return 0.0f; }
+        if (!v.active()) { v.filter.reset(); v.note = -1; v.gate = false; return 0.0f; }
 
         v.p1 += v.dt1;
         const bool wrapped = v.p1 >= 1.0f;
@@ -263,7 +270,24 @@ private:
         const float bright1 = o1 + q_.bright * (o1 - std::sin(2.0f * kPi * v.p1)) * 0.7f;
         const float bright2 = o2 + q_.bright * (o2 - std::sin(2.0f * kPi * v.p2)) * 0.7f;
         const float mix = (bright1 * q_.l1 + bright2 * q_.l2 + noise() * q_.ln) * 0.7f;
-        const float y = v.lp.process(mix, v.g, q_.k, q_.four);
+        const float damping = std::max(0.025f, 2.0f - q_.k * 1.92f - q_.selfOsc * 1.75f);
+        const auto a = v.filter.process(mix, v.g, damping);
+        float y;
+        if (q_.lp24) {
+            const float lp24 = a.lp * (0.55f + 0.45f * a.lp);
+            const float lp6 = mix / (1.0f + v.g * 1.7f);
+            const float slope = q_.multi;
+            y = lp24 * (1.0f - slope) + lp6 * slope;
+        } else {
+            const float center = q_.bp ? a.bp : a.notch;
+            if (q_.filterMix < 0.5f) {
+                const float t = q_.filterMix * 2.0f;
+                y = a.lp * (1.0f - t) + center * t;
+            } else {
+                const float t = (q_.filterMix - 0.5f) * 2.0f;
+                y = center * (1.0f - t) + a.hp * t;
+            }
+        }
         return y * ae * (0.3f + 0.7f * v.vel);
     }
 
