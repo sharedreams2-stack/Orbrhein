@@ -76,10 +76,7 @@ class MidiInput(private val context: Context, private val vm: SynthViewModel) {
                 0x90 -> if (d2 > 0) vm.noteOn(d1, d2 / 127f) else vm.noteOff(d1)
                 0x80 -> vm.noteOff(d1)
                 0xE0 -> vm.pitchBend((((d2 shl 7) or d1) - 8192) / 8192f)
-                0xB0 -> when (d1) {
-                    1 -> main.post { vm.set(P.LFO_PITCH, d2 / 127f) }
-                    123 -> vm.panic()
-                }
+                0xB0 -> main.post { vm.onMidiCC(d1, d2) }
             }
             i += len
         }
