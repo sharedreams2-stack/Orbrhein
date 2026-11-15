@@ -24,7 +24,7 @@ class SynthViewModel : ViewModel() {
     private data class Snapshot(val values: List<Float>, val arp: ArpConfig)
     private val undoStack = ArrayDeque<Snapshot>()
     private val redoStack = ArrayDeque<Snapshot>()
-    private val arpeggiator = Arpeggiator({ n, v -> SynthEngine.nativeNoteOn(n, v) }, { n -> SynthEngine.nativeNoteOff(n) })
+    private val arpeggiator = Arpeggiator({ n, v -> SynthEngine.nativeNoteOn(n, v); MidiBridge.noteOn(n, v) }, { n -> SynthEngine.nativeNoteOff(n); MidiBridge.noteOff(n) })
 
     val firstNote: Int get() = 12 * (octave + 1)
 
@@ -103,8 +103,12 @@ class SynthViewModel : ViewModel() {
     // Safe to call from any thread (MIDI input uses these).
     fun noteOn(note: Int, velocity: Float) = arpeggiator.noteOn(note, velocity)
     fun noteOff(note: Int) = arpeggiator.noteOff(note)
+    fun midiNoteOn(note: Int, velocity: Float) = arpeggiator.noteOn(note, velocity)
+    fun midiNoteOff(note: Int) = arpeggiator.noteOff(note)
+    fun resumeArpeggiator() { if (arpConfig.enabled) arpeggiator.start() }
+    fun pauseArpeggiator() { arpeggiator.stop() }
     fun pitchBend(value: Float) = SynthEngine.nativePitchBend(value)
-    fun panic() { arpeggiator.panic(); SynthEngine.nativeAllNotesOff() }
+    fun panic() { arpeggiator.panic(); SynthEngine.nativeAllNotesOff(); MidiBridge.send(byteArrayOf(0xB0.toByte(), 123, 0)) }
 
     fun exportStateJson(): String {
         val root = JSONObject()
