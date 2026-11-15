@@ -114,7 +114,12 @@ class SynthViewModel : ViewModel() {
     fun toggleFxHold() { fxHoldActive = !fxHoldActive; SynthEngine.nativeFxHold(fxHoldActive) }
     fun fxLooperCommand(command: Int) {
         SynthEngine.nativeFxLooperCommand(command)
-        fxLoopState = when (command) { 1 -> 1; 2,3 -> 2; else -> 0 }
+        fxLoopState = when (command) {
+            1 -> if (fxLoopState == 1) 2 else 1
+            2 -> 2
+            3 -> 3
+            else -> 0
+        }
     }
     fun saveFxUserPreset(slot: Int, name: String? = null) {
         if (slot !in 0..15) return
