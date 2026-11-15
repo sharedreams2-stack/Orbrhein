@@ -21,7 +21,7 @@ class SynthViewModel : ViewModel() {
     var arpConfig by mutableStateOf(ArpConfig()); private set
     var showArp by mutableStateOf(false)
     var arpStep by mutableIntStateOf(0); private set
-    private data class Snapshot(val values: List<Float>, val arp: ArpConfig)
+    private data class Snapshot(val values: List<Float>, val arp: ArpConfig, val mappings: Map<Int, Int>, val preset: Int, val octave: Int)
     private val undoStack = ArrayDeque<Snapshot>()
     private val redoStack = ArrayDeque<Snapshot>()
     private val arpeggiator = Arpeggiator(
@@ -32,14 +32,16 @@ class SynthViewModel : ViewModel() {
 
     val firstNote: Int get() = 12 * (octave + 1)
 
-    private fun snapshot() = Snapshot(values.toList(), arpConfig)
+    private fun snapshot() = Snapshot(values.toList(), arpConfig, midiMappings.toMap(), presetIndex, octave)
     private fun remember() { undoStack.addLast(snapshot()); while (undoStack.size > 100) undoStack.removeFirst(); redoStack.clear() }
     fun canUndo() = undoStack.isNotEmpty()
     fun canRedo() = redoStack.isNotEmpty()
     private fun applySnapshot(s: Snapshot) {
         s.values.forEachIndexed { id, v -> values[id] = v }
+        presetIndex = s.preset; octave = s.octave
+        midiMappings.clear(); midiMappings.putAll(s.mappings)
         SynthEngine.nativeAllNotesOff(); pushAll()
-        arpConfig = s.arp; arpeggiator.configure(arpConfig); if (arpConfig.enabled) arpeggiator.start()
+        arpConfig = s.arp; arpeggiator.configure(arpConfig)
     }
     fun undo() { if (undoStack.isNotEmpty()) { redoStack.addLast(snapshot()); applySnapshot(undoStack.removeLast()) } }
     fun redo() { if (redoStack.isNotEmpty()) { undoStack.addLast(snapshot()); applySnapshot(redoStack.removeLast()) } }
@@ -69,6 +71,7 @@ class SynthViewModel : ViewModel() {
     fun pushAll() = values.forEachIndexed { id, v -> SynthEngine.nativeSetParam(id, v) }
 
     fun loadPreset(index: Int) {
+        remember()
         val i = Math.floorMod(index, PRESETS.size)
         presetIndex = i
         PRESETS[i].values.forEachIndexed { id, v -> values[id] = v }
@@ -80,12 +83,13 @@ class SynthViewModel : ViewModel() {
 
     fun beginMidiLearn() { isMidiLearning = true }
 
-    fun clearMidiMappings() { midiMappings.clear(); isMidiLearning = false }
+    fun clearMidiMappings() { if (midiMappings.isNotEmpty()) remember(); midiMappings.clear(); isMidiLearning = false }
 
     fun onMidiCC(controller: Int, value: Int) {
         // Reserve All Notes Off so MIDI Learn can never steal the panic command.
         if (controller == 123) { panic(); return }
         if (isMidiLearning) {
+            remember()
             midiMappings[controller] = midiTarget
             isMidiLearning = false
             return
@@ -100,6 +104,7 @@ class SynthViewModel : ViewModel() {
     }
 
     fun shiftOctave(delta: Int) {
+        remember()
         octave = (octave + delta).coerceIn(1, 6)
         SynthEngine.nativeAllNotesOff()
     }
@@ -153,7 +158,7 @@ class SynthViewModel : ViewModel() {
         val routeArray = a.optJSONArray("routes") ?: JSONArray()
         val routes = (0 until routeArray.length()).mapNotNull { i -> routeArray.optJSONObject(i)?.let { ArpModRoute(it.optString("source"),it.optInt("target"),it.optDouble("amount").toFloat(),it.optBoolean("bipolar")) } }
         arpConfig = ArpConfig(a.optBoolean("enabled",false),a.optBoolean("hold",false),a.optDouble("bpm",120.0).toFloat(),a.optInt("division",4),runCatching { ArpDirection.valueOf(a.optString("direction","UP")) }.getOrDefault(ArpDirection.UP),a.optInt("octaveRange",1),runCatching { ArpScale.valueOf(a.optString("scale","CHROMATIC")) }.getOrDefault(ArpScale.CHROMATIC),a.optInt("root",0),a.optInt("chordSize",1),a.optInt("strumMs",0),a.optInt("intervalShift",0),a.optBoolean("randomMode",false),a.optBoolean("evolve",false),a.optInt("loopLength",16),a.optDouble("humanize",0.0).toFloat(),steps,routes)
-        SynthEngine.nativeAllNotesOff(); pushAll(); arpeggiator.configure(arpConfig)
+        SynthEngine.nativeAllNotesOff(); pushAll(); arpeggiator.configure(arpConfig, autoStart = false)
     }
 
 }
