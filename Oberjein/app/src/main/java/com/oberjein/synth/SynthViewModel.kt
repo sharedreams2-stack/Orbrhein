@@ -68,6 +68,7 @@ class SynthViewModel : ViewModel() {
         val next = transform(arpConfig)
         if (next == arpConfig) return
         remember(); arpConfig = next
+        arpeggiator.setHold(next.hold)
         arpeggiator.configure(next)
         if (next.enabled) arpeggiator.start()
     }
