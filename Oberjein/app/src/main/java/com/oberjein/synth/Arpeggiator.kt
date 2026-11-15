@@ -66,10 +66,8 @@ class Arpeggiator(
     private var activeNotes = mutableSetOf<Int>()
 
     fun configure(value: ArpConfig) {
-        val wasRunning = running
-        stop()
         config = value.copy(steps = value.steps.take(64).let { it + List(max(0, 64-it.size)) { ArpStep() } })
-        if (wasRunning && config.enabled) start()
+        if (!config.enabled && running) stop() else if (config.enabled && !running) start()
     }
 
     fun noteOn(note: Int, velocity: Float) {
