@@ -74,19 +74,25 @@ class Arpeggiator(
     }
 
     fun noteOn(note: Int, velocity: Float) {
+        if (!config.enabled) {
+            onNoteOn(note, velocity)
+            return
+        }
         if (config.hold) {
             // Latch is edge-triggered: a fresh key-down toggles exactly this pitch.
             if (!latched.add(note)) latched.remove(note)
         } else {
             held.add(note)
         }
-        if (!config.enabled) onNoteOn(note, velocity)
     }
 
     fun noteOff(note: Int) {
+        if (!config.enabled) {
+            onNoteOff(note)
+            return
+        }
         held.remove(note)
         // In latch mode a physical key-up must not remove the latched pitch.
-        if (!config.enabled && !config.hold) onNoteOff(note)
     }
 
     fun setHold(enabled: Boolean) {
