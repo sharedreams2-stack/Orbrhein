@@ -38,7 +38,13 @@ object P {
     const val SPREAD = 33
     const val XMOD = 34
     const val BRIGHT = 35
-    const val COUNT = 36
+    const val FILTER_MIX = 36
+    const val FILTER_BP = 37
+    const val LP24 = 38
+    const val FILTER_MULTI = 39
+    const val FENV_INVERT = 40
+    const val SELF_OSC = 41
+    const val COUNT = 42
 }
 
 /** All values are normalized 0..1 (switches are 0 or 1). The DSP maps them to real units. */
@@ -52,6 +58,7 @@ val DEFAULTS: FloatArray = FloatArray(P.COUNT).also {
     it[P.LFO_RATE] = 0.4f
     it[P.UNI_DETUNE] = 0.3f; it[P.VOLUME] = 0.7f
     it[P.SPREAD] = 0.35f; it[P.XMOD] = 0f; it[P.BRIGHT] = 0f
+    it[P.FILTER_MIX] = 0f; it[P.FILTER_MULTI] = 0f
 }
 
 class Preset(val name: String, val values: FloatArray)
