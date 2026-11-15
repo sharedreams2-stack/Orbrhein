@@ -27,6 +27,7 @@ enum Param : int {
     P_FILTER_MIX, P_FILTER_BP, P_LP24, P_FILTER_MULTI, P_FENV_INVERT, P_SELF_OSC,
     P_LFO2_RATE, P_LFO2_WAVE, P_LFO2_PITCH, P_LFO2_FILTER, P_LFO2_PWM,
     P_VOICE_COUNT, P_UNI_VOICES, P_VAM, P_PERSISTENT_VOICING, P_LEGATO,
+    P_OVERSAMPLING, P_TRANSPOSE, P_FINE_TUNE,
     P_COUNT
 };
 
@@ -151,11 +152,14 @@ public:
             --ctrl_;
             volSm_ += (q_.volume - volSm_) * 0.002f;
             float l = 0.0f, r = 0.0f;
-            for (auto& v : voices_) {
-                if (!v.active()) continue;
-                const float s = tickVoice(v);
-                l += s * v.gl;
-                r += s * v.gr;
+            const int factor = q_.oversampling;
+            for (int sub = 0; sub < factor; ++sub) {
+                for (auto& v : voices_) {
+                    if (!v.active()) continue;
+                    const float sample = tickVoice(v) / static_cast<float>(factor);
+                    l += sample * v.gl;
+                    r += sample * v.gr;
+                }
             }
             const float g = volSm_ * q_.master;
             out[2 * n] = fastTanh(l * g);
@@ -175,7 +179,8 @@ private:
         float filterMix = 0.0f, multi = 0.0f, fenvInvert = 0.0f, selfOsc = 0.0f;
         float glide = 1.0f, volume = 0, master = 0.4f;
         bool bp = false, lp24 = false, persistent = false;
-        int voiceCount = 8, uniVoices = 8, vam = 0, legato = 0;
+        int voiceCount = 8, uniVoices = 8, vam = 0, legato = 0, oversampling = 1;
+        float transpose = 0.0f, fineTune = 0.0f;
         EnvCoef fe{}, ae{};
     };
 
@@ -184,13 +189,18 @@ private:
     static float timeOf(float v) { return 0.001f * std::pow(10.0f, 4.0f * v); }  // 1 ms .. 10 s
 
     EnvCoef coefs(float a, float d, float s, float r) const {
-        auto cA = [&](float t) { return 1.0f - std::exp(-1.466f / (std::max(t, 0.0005f) * sr_)); };
-        auto cD = [&](float t) { return 1.0f - std::exp(-6.9f / (std::max(t, 0.0005f) * sr_)); };
+        const float rate = sr_ * static_cast<float>(q_.oversampling);
+        auto cA = [&](float t) { return 1.0f - std::exp(-1.466f / (std::max(t, 0.0005f) * rate)); };
+        auto cD = [&](float t) { return 1.0f - std::exp(-6.9f / (std::max(t, 0.0005f) * rate)); };
         return {cA(timeOf(a)), cD(timeOf(d)), s, cD(timeOf(r))};
     }
 
     void updateControl() {
         Snap& q = q_;
+        const int osIndex = std::clamp(static_cast<int>(std::lround(P(P_OVERSAMPLING) * 2.0f)), 0, 2);
+        q.oversampling = osIndex == 0 ? 1 : (osIndex == 1 ? 2 : 4);
+        q.transpose = std::round((P(P_TRANSPOSE) - 0.5f) * 8.0f);
+        q.fineTune = (P(P_FINE_TUNE) - 0.5f) * 200.0f;
         q.saw1 = P(P_VCO1_SAW) > 0.5f;   q.pulse1 = P(P_VCO1_PULSE) > 0.5f;
         q.saw2 = P(P_VCO2_SAW) > 0.5f;   q.pulse2 = P(P_VCO2_PULSE) > 0.5f;
         q.sync = P(P_SYNC) > 0.5f;       q.lp24 = P(P_LP24) > 0.5f;
@@ -254,24 +264,27 @@ private:
             default: lfo2_ = shValue2_; break;
         }
 
-        const float maxF = 0.45f * sr_;
+        const float internalRate = sr_ * static_cast<float>(q.oversampling);
+        const float maxF = 0.45f * internalRate;
         for (auto& v : voices_) {
             if (!v.active()) continue;
             v.curSemi += (v.tgtSemi - v.curSemi) * q.glide;
             const float vib = lfo_ * q.lfoPitch * q.lfoPitch * 2.0f
                             + lfo2_ * q.lfo2Pitch * q.lfo2Pitch * 2.0f;
             const float base = v.curSemi + bend_ * 2.0f + vib;
-            const float f1 = 440.0f * std::exp2((base - 69.0f + (v.drift1 + v.uniCents) / 100.0f) / 12.0f);
-            const float f2 = 440.0f * std::exp2((base + q.semi2 - 69.0f + (q.det2 + v.drift2 + v.uniCents) / 100.0f) / 12.0f);
-            v.dt1 = std::min(f1, maxF) / sr_;
-            v.dt2 = std::min(f2, maxF) / sr_;
+            const float oscBase = base + q.transpose;
+            const float tuning = q.fineTune / 100.0f;
+            const float f1 = 440.0f * std::exp2((oscBase - 69.0f + tuning + (v.drift1 + v.uniCents) / 100.0f) / 12.0f);
+            const float f2 = 440.0f * std::exp2((oscBase + q.semi2 - 69.0f + tuning + (q.det2 + v.drift2 + v.uniCents) / 100.0f) / 12.0f);
+            v.dt1 = std::min(f1, maxF) / internalRate;
+            v.dt2 = std::min(f2, maxF) / internalRate;
             v.pw = std::clamp(q.pwBase + 0.4f * (lfo_ * q.lfoPwm + lfo2_ * q.lfo2Pwm), 0.05f, 0.95f);
             const float envValue = q.fenvInvert > 0.5f ? -v.fenv.level : v.fenv.level;
             const float oct = q.cutOct + q.fenvAmt * envValue * 6.0f
-                            + q.keytrack * (base - 60.0f) / 12.0f + q.lfoFilter * lfo_ * 2.0f
+                            + q.keytrack * (v.curSemi - 60.0f) / 12.0f + q.lfoFilter * lfo_ * 2.0f
                             + q.lfo2Filter * lfo2_ * 2.0f;
-            const float fc = std::clamp(20.0f * std::exp2(oct), 20.0f, 0.49f * sr_);
-            v.g = std::tan(kPi * fc / (2.0f * sr_));
+            const float fc = std::clamp(20.0f * std::exp2(oct), 20.0f, 0.49f * internalRate);
+            v.g = std::tan(kPi * fc / (2.0f * internalRate));
         }
     }
 
