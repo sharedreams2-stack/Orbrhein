@@ -24,6 +24,7 @@ enum Param : int {
     P_LFO_RATE, P_LFO_WAVE, P_LFO_PITCH, P_LFO_FILTER, P_LFO_PWM,
     P_PORTA, P_UNISON, P_UNI_DETUNE, P_VOLUME,
     P_SPREAD, P_XMOD, P_BRIGHT,
+    P_FILTER_MIX, P_FILTER_BP, P_LP24, P_FILTER_MULTI, P_FENV_INVERT, P_SELF_OSC,
     P_COUNT
 };
 
@@ -111,7 +112,8 @@ struct Voice {
     float drift1 = 0.0f, drift2 = 0.0f;
     float gl = 0.7f, gr = 0.7f;
     Env fenv, aenv;
-    SemFilter filter;
+    SemFilter filter, filter2;
+    float lp6 = 0.0f;
     bool active() const { return aenv.stage != Env::Idle; }
 };
 
@@ -251,7 +253,7 @@ private:
     float tickVoice(Voice& v) {
         v.fenv.tick(q_.fe);
         const float ae = v.aenv.tick(q_.ae);
-        if (!v.active()) { v.filter.reset(); v.note = -1; v.gate = false; return 0.0f; }
+        if (!v.active()) { v.filter.reset(); v.filter2.reset(); v.lp6 = 0.0f; v.note = -1; v.gate = false; return 0.0f; }
 
         v.p1 += v.dt1;
         const bool wrapped = v.p1 >= 1.0f;
@@ -274,10 +276,10 @@ private:
         const auto a = v.filter.process(mix, v.g, damping);
         float y;
         if (q_.lp24) {
-            const float lp24 = a.lp * (0.55f + 0.45f * a.lp);
-            const float lp6 = mix / (1.0f + v.g * 1.7f);
+            const auto b = v.filter2.process(a.lp, v.g, damping);
+            v.lp6 += (mix - v.lp6) * (v.g / (1.0f + v.g));
             const float slope = q_.multi;
-            y = lp24 * (1.0f - slope) + lp6 * slope;
+            y = b.lp * (1.0f - slope) + v.lp6 * slope;
         } else {
             const float center = q_.bp ? a.bp : a.notch;
             if (q_.filterMix < 0.5f) {
