@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'Oberjein/**'
       - 'Oberjein-android-project.zip'
       - '.github/workflows/android-build.yml'
   workflow_dispatch:
@@ -24,20 +25,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate and extract project
+      - name: Validate extracted project
         shell: bash
         run: |
           set -euo pipefail
-          test -f Oberjein-android-project.zip || {
-            echo "::error::Oberjein-android-project.zip is missing from the repository root."
+          test -f Oberjein/app/build.gradle.kts || {
+            echo "::error::Extracted Android project not found at Oberjein/."
+            find . -maxdepth 4 -type f | sort | head -200
             exit 1
           }
-          unzip -q Oberjein-android-project.zip -d extracted
-          test -f extracted/Oberjein/app/build.gradle.kts || {
-            echo "::error::Expected project at extracted/Oberjein."
-            find extracted -maxdepth 4 -type f | sort
-            exit 1
-          }
+          test -f Oberjein/app/src/main/java/com/oberjein/synth/ui/MainScreen.kt
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -45,7 +42,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Configure preinstalled Android SDK
+      - name: Configure Android SDK
         shell: bash
         run: |
           set -euo pipefail
@@ -79,13 +76,13 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build debug APK
-        working-directory: extracted/Oberjein
+        working-directory: Oberjein
         run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: Oberjein-debug-apk
-          path: extracted/Oberjein/app/build/outputs/apk/debug/*.apk
+          path: Oberjein/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
