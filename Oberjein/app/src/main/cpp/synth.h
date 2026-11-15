@@ -23,6 +23,7 @@ enum Param : int {
     P_A_A, P_A_D, P_A_S, P_A_R,
     P_LFO_RATE, P_LFO_WAVE, P_LFO_PITCH, P_LFO_FILTER, P_LFO_PWM,
     P_PORTA, P_UNISON, P_UNI_DETUNE, P_VOLUME,
+    P_SPREAD, P_XMOD, P_BRIGHT,
     P_COUNT
 };
 
@@ -41,6 +42,7 @@ inline float polyBlep(float t, float dt) {
 inline float oscSample(float p, float dt, float pw, bool saw, bool pulse) {
     float s = 0.0f;
     if (saw) s += 2.0f * p - 1.0f - polyBlep(p, dt);
+    if (!saw && !pulse) return 1.0f - 4.0f * std::fabs(p - 0.5f);
     if (pulse) {
         float v = (p < pw ? 1.0f : -1.0f) + polyBlep(p, dt);
         float t2 = p - pw;
@@ -105,6 +107,7 @@ struct Voice {
     float curSemi = 60.0f, tgtSemi = 60.0f, uniCents = 0.0f;
     float p1 = 0.0f, p2 = 0.0f;
     float dt1 = 0.0f, dt2 = 0.0f, pw = 0.5f, g = 0.5f;
+    float drift1 = 0.0f, drift2 = 0.0f;
     float gl = 0.7f, gr = 0.7f;
     Env fenv, aenv;
     Ladder lp;
@@ -162,6 +165,7 @@ private:
         float l1 = 0, l2 = 0, ln = 0, semi2 = 0, det2 = 0, pwBase = 0.5f;
         float cutOct = 0, k = 0, fenvAmt = 0, keytrack = 0;
         float lfoPitch = 0, lfoFilter = 0, lfoPwm = 0;
+        float xmod = 0.0f, bright = 0.0f, spread = 0.0f;
         float glide = 1.0f, spread = 0, volume = 0, master = 0.4f;
         EnvCoef fe{}, ae{};
     };
@@ -185,7 +189,10 @@ private:
         if (uni != q.unison) { q.unison = uni; releaseAll(); }
         q.l1 = P(P_VCO1_LEVEL); q.l2 = P(P_VCO2_LEVEL); q.ln = P(P_NOISE) * 0.5f;
         q.semi2 = std::round((P(P_VCO2_SEMI) - 0.5f) * 24.0f);
-        q.det2 = (P(P_VCO2_DETUNE) - 0.5f) * 100.0f;
+        q.det2 = P(P_VCO2_DETUNE) * 100.0f;
+        q.xmod = P(P_XMOD);
+        q.bright = P(P_BRIGHT);
+        q.spread = P(P_SPREAD) * 8.0f;
         q.pwBase = 0.5f - 0.45f * P(P_PWM);
         q.cutOct = P(P_CUTOFF) * 9.81f;
         q.k = P(P_RESO) * 4.2f;
@@ -194,7 +201,7 @@ private:
         q.lfoPitch = P(P_LFO_PITCH); q.lfoFilter = P(P_LFO_FILTER); q.lfoPwm = P(P_LFO_PWM);
         const float gt = P(P_PORTA) < 0.01f ? 0.0f : 0.01f * std::pow(300.0f, P(P_PORTA));
         q.glide = gt <= 0.0f ? 1.0f : 1.0f - std::exp(-kCtrlRate / (sr_ * gt / 3.0f));
-        q.spread = P(P_UNI_DETUNE) * 30.0f;
+        const float unisonSpread = P(P_UNI_DETUNE) * 30.0f;
         q.volume = P(P_VOLUME);
         q.master = q.unison ? 0.4f : 0.7f;
         q.fe = coefs(P(P_F_A), P(P_F_D), P(P_F_S), P(P_F_R));
@@ -217,8 +224,8 @@ private:
             v.curSemi += (v.tgtSemi - v.curSemi) * q.glide;
             const float vib = lfo_ * q.lfoPitch * q.lfoPitch * 2.0f;
             const float base = v.curSemi + bend_ * 2.0f + vib;
-            const float f1 = 440.0f * std::exp2((base - 69.0f + v.uniCents / 100.0f) / 12.0f);
-            const float f2 = 440.0f * std::exp2((base + q.semi2 - 69.0f + (q.det2 + v.uniCents) / 100.0f) / 12.0f);
+            const float f1 = 440.0f * std::exp2((base - 69.0f + (v.drift1 + v.uniCents) / 100.0f) / 12.0f);
+            const float f2 = 440.0f * std::exp2((base + q.semi2 - 69.0f + (q.det2 + v.drift2 + v.uniCents) / 100.0f) / 12.0f);
             v.dt1 = std::min(f1, maxF) / sr_;
             v.dt2 = std::min(f2, maxF) / sr_;
             v.pw = std::clamp(q.pwBase + 0.4f * lfo_ * q.lfoPwm, 0.05f, 0.95f);
@@ -250,8 +257,10 @@ private:
             if (v.p2 >= 1.0f) v.p2 -= 1.0f;
         }
         const float o1 = oscSample(v.p1, v.dt1, v.pw, q_.saw1, q_.pulse1);
-        const float o2 = oscSample(v.p2, v.dt2, v.pw, q_.saw2, q_.pulse2);
-        const float mix = (o1 * q_.l1 + o2 * q_.l2 + noise() * q_.ln) * 0.7f;
+        const float o2 = oscSample(v.p2 + o1 * q_.xmod * 0.12f, v.dt2, v.pw, q_.saw2, q_.pulse2);
+        const float bright1 = o1 + q_.bright * (o1 - std::sin(2.0f * kPi * v.p1)) * 0.7f;
+        const float bright2 = o2 + q_.bright * (o2 - std::sin(2.0f * kPi * v.p2)) * 0.7f;
+        const float mix = (bright1 * q_.l1 + bright2 * q_.l2 + noise() * q_.ln) * 0.7f;
         const float y = v.lp.process(mix, v.g, q_.k, q_.four);
         return y * ae * (0.3f + 0.7f * v.vel);
     }
