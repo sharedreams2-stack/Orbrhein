@@ -371,14 +371,17 @@ private:
             const bool wasEmpty = stackSize_ == 0;
             removeFromStack(note);
             if (stackSize_ < static_cast<int>(stack_.size())) stack_[stackSize_++] = note;
+            const int selected = q_.vam == 1
+                ? *std::min_element(stack_.begin(), stack_.begin() + stackSize_)
+                : stack_[stackSize_ - 1];
             for (int i = 0; i < q_.uniVoices; ++i) {
                 Voice& v = voices_[i];
                 v.uniCents = (static_cast<float>(i) - (q_.uniVoices - 1) * 0.5f)
                            / std::max(1.0f, (q_.uniVoices - 1) * 0.5f) * q_.uniSpread;
                 v.drift1 = (noise() * 2.0f - 1.0f) * (0.15f + q_.spread);
                 v.drift2 = (noise() * 2.0f - 1.0f) * (0.15f + q_.spread);
-                v.note = note; v.gate = true; v.vel = vel; v.age = ++counter_;
-                v.tgtSemi = static_cast<float>(note);
+                v.note = selected; v.gate = true; v.vel = vel; v.age = ++counter_;
+                v.tgtSemi = static_cast<float>(selected);
                 if (wasEmpty || !v.active()) {
                     v.curSemi = v.tgtSemi;
                     v.fenv.gateOn(); v.aenv.gateOn();
@@ -417,9 +420,12 @@ private:
         } else if (q_.unison) {
             removeFromStack(note);
             if (stackSize_ == 0) { releaseAll(); return; }
+            const int selected = q_.vam == 1
+                ? *std::min_element(stack_.begin(), stack_.begin() + stackSize_)
+                : stack_[stackSize_ - 1];
             for (int i = 0; i < q_.uniVoices; ++i) {
-                voices_[i].note = stack_[stackSize_ - 1];
-                voices_[i].tgtSemi = static_cast<float>(voices_[i].note);
+                voices_[i].note = selected;
+                voices_[i].tgtSemi = static_cast<float>(selected);
             }
         } else {
             for (auto& v : voices_)
