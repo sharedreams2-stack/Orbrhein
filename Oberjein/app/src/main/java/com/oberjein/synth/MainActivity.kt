@@ -37,9 +37,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        vm.pushAll()
         MidiBridge.attach(vm)
-        vm.resumeArpeggiator()
         ContextCompat.startForegroundService(this, Intent(this, OberjeinAudioService::class.java).setAction(OberjeinAudioService.ACTION_START))
     }
 
