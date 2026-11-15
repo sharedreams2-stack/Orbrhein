@@ -4,19 +4,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oberjein.synth.*
+import java.util.Locale
 
 private val arpTargets = listOf(
     P.VCO1_SAW to "OSC1 SAW", P.VCO1_PULSE to "OSC1 PULSE", P.VCO1_LEVEL to "OSC1 LEVEL",
@@ -39,144 +41,280 @@ private val arpTargets = listOf(
     P.FINE_TUNE to "FINE TUNE"
 )
 
+private val arpDirectionLabels = listOf("UP", "DOWN", "UP/DN", "DN/UP", "AS PLAYED", "RANDOM")
+private val arpScaleLabels = listOf("CHROMA", "MAJOR", "MINOR", "DORIAN", "PENTA", "BLUES", "HARM MIN")
+private val arpScaleValues = ArpScale.values().toList()
+private val arpDivisionValues = listOf(1, 2, 4, 8, 16, 32)
+private val arpDivisionLabels = listOf("1/1", "1/2", "1/4", "1/8", "1/16", "1/32")
+private val arpSourceNames = listOf("STEP", "VELOCITY", "PROBABILITY", "RANDOM", "PITCH")
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ArpeggiatorScreen(vm: SynthViewModel) {
     val cfg = vm.arpConfig
     var selected by remember { mutableIntStateOf(0) }
+    var newRouteSource by remember { mutableIntStateOf(0) }
+    var newRouteTarget by remember { mutableIntStateOf(0) }
     val step = cfg.steps[selected]
     val directions = ArpDirection.values().toList()
-    val scales = ArpScale.values().toList()
-    Column(Modifier.fillMaxSize().background(Chassis).verticalScroll(rememberScrollState()).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth().background(Panel).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("SUPER ARP", color = ElectricBlue, fontSize = 18.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Black)
-            Spacer(Modifier.weight(1f))
-            Text(if (cfg.enabled) "RUNNING" else "STOPPED", color = if (cfg.enabled) ElectricBlue else Cream, fontSize = 9.sp)
-            Button(onClick = { vm.toggleArp() }, colors = ButtonDefaults.buttonColors(containerColor = WalnutDark)) { Text(if (cfg.enabled) "STOP" else "START") }
-            Button(onClick = { vm.setArpPage(false) }, colors = ButtonDefaults.buttonColors(containerColor = WalnutDark)) { Text("SYNTH") }
-        }
-        ArpPanel("PERFORMANCE") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("HOLD / LATCH", color = Cream, fontSize = 10.sp); Spacer(Modifier.weight(1f))
-                Switch(checked = cfg.hold, onCheckedChange = { vm.updateArp { c -> c.copy(hold = it) } })
+
+    Column(
+        Modifier.fillMaxSize().background(Chassis).padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().background(Panel).padding(horizontal = 9.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text("SUPER ARP", color = Cream, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                Text("64-STEP PERFORMANCE SEQUENCER", color = ElectricBlue, fontSize = 7.sp, fontWeight = FontWeight.Bold)
             }
-            Text("Each key press toggles that note in or out of the latched pool.", color = Color.LightGray, fontSize = 9.sp)
-            ArpSlider("TEMPO", cfg.bpm, 30f..300f, { vm.updateArp { c -> c.copy(bpm = it) } }, "%.1f BPM")
-            ArpChoice("RATE", listOf("1/1","1/2","1/4","1/8","1/16","1/32"), listOf(1,2,4,8,16,32).indexOf(cfg.division).coerceAtLeast(0)) { v -> vm.updateArp { c -> c.copy(division = listOf(1,2,4,8,16,32)[v]) } }
-            ArpChoice("DIRECTION", directions.map { it.name.replace('_',' ') }, directions.indexOf(cfg.direction)) { v -> vm.updateArp { c -> c.copy(direction = directions[v]) } }
-            ArpChoice("OCTAVES", (1..4).map { it.toString() }, cfg.octaveRange - 1) { v -> vm.updateArp { c -> c.copy(octaveRange = v + 1) } }
-            ArpChoice("SCALE", scales.map { it.name.replace('_',' ') }, scales.indexOf(cfg.scale)) { v -> vm.updateArp { c -> c.copy(scale = scales[v]) } }
-            ArpChoice("ROOT", listOf("C","C#","D","D#","E","F","F#","G","G#","A","A#","B"), cfg.root.coerceIn(0,11)) { v -> vm.updateArp { c -> c.copy(root = v) } }
-            ArpChoice("CHORD", (1..8).map { "$it" }, cfg.chordSize - 1) { v -> vm.updateArp { c -> c.copy(chordSize = v+1) } }
-            ArpSlider("STRUM", cfg.strumMs.toFloat(), 0f..120f, { v -> vm.updateArp { c -> c.copy(strumMs = v.toInt()) } }, "%.0f ms")
-            ArpChoice("INTERVAL SHIFT", (-12..12).map { "%+d".format(it) }, cfg.intervalShift + 12) { v -> vm.updateArp { c -> c.copy(intervalShift = v-12) } }
-            ArpSlider("HUMANIZE", cfg.humanize, 0f..1f, { v -> vm.updateArp { c -> c.copy(humanize = v) } }, "%.0f%%", 100f)
-            ArpSlider("LOOP LENGTH", cfg.loopLength.toFloat(), 1f..64f, { v -> vm.updateArp { c -> c.copy(loopLength = v.toInt().coerceIn(1,64)) } }, "%.0f STEPS")
+            Spacer(Modifier.weight(1f))
+            Text(if (cfg.enabled) "RUNNING" else "STOPPED", color = if (cfg.enabled) ElectricBlue else Dim, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(5.dp))
+            BarButton(if (cfg.enabled) "STOP" else "START") { vm.toggleArp() }
+            BarButton(if (cfg.hold) "HOLD ON" else "HOLD OFF") { vm.updateArp { it.copy(hold = !it.hold) } }
+            BarButton("UNDO") { vm.undo() }
+            BarButton("REDO") { vm.redo() }
+            BarButton("SYNTH") { vm.setArpPage(false) }
+            BarButton("FX") { vm.setFxPage(true) }
         }
-        ArpPanel("64-STEP PATTERN") {
-            Text("Select a step to edit probability, ratchets, octave, velocity, gate and semitone shift.", color = Color.LightGray, fontSize = 9.sp)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                repeat(64) { i ->
-                    val st = cfg.steps[i]
-                    Box(Modifier.size(31.dp).background(when { i == selected -> ElectricBlue; !st.enabled -> WalnutDark; i % 4 == 0 -> Panel; else -> Chassis }).clickable { selected = i }.padding(2.dp), contentAlignment = Alignment.Center) {
-                        Text("${i+1}", color = if (i == selected) Color.Black else Cream, fontSize = 8.sp)
+
+        Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // COLUMN 1 — CLOCK, NOTE POOL AND MUSICAL QUANTIZATION
+            Column(Modifier.weight(0.22f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Section("CLOCK / DIRECTION") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Knob("TEMPO", ((cfg.bpm - 30f) / 270f).coerceIn(0f, 1f),
+                            { v -> vm.updateArp { it.copy(bpm = 30f + v * 270f) } },
+                            diameter = 34.dp, readout = String.format(Locale.US, "%.1f BPM", cfg.bpm))
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            ArpCompactChoice("RATE", arpDivisionLabels, arpDivisionValues.indexOf(cfg.division).coerceAtLeast(0)) {
+                                vm.updateArp { c -> c.copy(division = arpDivisionValues[it]) }
+                            }
+                            ArpCompactChoice("DIRECTION", arpDirectionLabels, directions.indexOf(cfg.direction).coerceAtLeast(0)) {
+                                vm.updateArp { c -> c.copy(direction = directions[it]) }
+                            }
+                        }
+                    }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        ArpCompactChoice("OCTAVES", (1..4).map { "$it" }, cfg.octaveRange - 1) {
+                            vm.updateArp { c -> c.copy(octaveRange = it + 1) }
+                        }
+                        ArpCompactChoice("LOOP", listOf("01", "08", "16", "32", "64"),
+                            listOf(1,8,16,32,64).indexOf(cfg.loopLength).let { if (it < 0) 4 else it }) {
+                            vm.updateArp { c -> c.copy(loopLength = listOf(1,8,16,32,64)[it]) }
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Toggle("HOLD", cfg.hold, { v -> vm.updateArp { it.copy(hold = v) } })
+                        Text("Latch notes: press again to release", color = Dim, fontSize = 7.sp, modifier = Modifier.weight(1f))
+                    }
+                }
+
+                Section("SCALE / KEY") {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        ArpCompactChoice("SCALE", arpScaleLabels, arpScaleValues.indexOf(cfg.scale).coerceAtLeast(0), width = 82.dp) {
+                            vm.updateArp { c -> c.copy(scale = arpScaleValues[it]) }
+                        }
+                        ArpCompactChoice("ROOT", listOf("C","C#","D","D#","E","F","F#","G","G#","A","A#","B"), cfg.root.coerceIn(0,11)) {
+                            vm.updateArp { c -> c.copy(root = it) }
+                        }
+                    }
+                    Text("Notes are quantized to the selected scale before chord/interval processing.", color = Dim, fontSize = 7.sp)
+                }
+
+                Section("CHORD / INTERVAL") {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        ArpCompactChoice("CHORD", (1..8).map { "$it" }, cfg.chordSize - 1) {
+                            vm.updateArp { c -> c.copy(chordSize = it + 1) }
+                        }
+                        ArpCompactChoice("SHIFT", (-12..12).map { "%+d".format(it) }, cfg.intervalShift + 12, width = 68.dp) {
+                            vm.updateArp { c -> c.copy(intervalShift = it - 12) }
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Knob("STRUM", (cfg.strumMs / 120f).coerceIn(0f,1f),
+                            { v -> vm.updateArp { it.copy(strumMs = (v * 120f).toInt()) } },
+                            diameter = 32.dp, readout = "${cfg.strumMs} ms")
+                        Knob("HUMAN", cfg.humanize, { v -> vm.updateArp { it.copy(humanize = v) } },
+                            diameter = 32.dp, readout = "${(cfg.humanize * 100).toInt()}%")
                     }
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("STEP ${selected+1}", color = ElectricBlue, fontSize = 11.sp); Spacer(Modifier.weight(1f))
-                Switch(checked = step.enabled, onCheckedChange = { v -> editStep(vm, selected) { it.copy(enabled = v) } })
-            }
-            ArpSlider("PROBABILITY", step.probability, 0f..1f, { v -> editStep(vm, selected) { it.copy(probability = v) } }, "%.0f%%", 100f)
-            ArpChoice("RATCHETS", (1..8).map { "$it" }, step.ratchets - 1) { v -> editStep(vm, selected) { it.copy(ratchets = v+1) } }
-            ArpChoice("OCTAVE", listOf("-2","-1","0","+1","+2"), step.octave + 2) { v -> editStep(vm, selected) { it.copy(octave = v-2) } }
-            ArpSlider("VELOCITY", step.velocity, 0f..1f, { v -> editStep(vm, selected) { it.copy(velocity = v) } }, "%.0f%%", 100f)
-            ArpSlider("GATE", step.gate, 0.05f..1f, { v -> editStep(vm, selected) { it.copy(gate = v) } }, "%.0f%%", 100f)
-            ArpChoice("STEP SHIFT", (-12..12).map { "%+d".format(it) }, step.shift + 12) { v -> editStep(vm, selected) { it.copy(shift = v-12) } }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Button(onClick = { vm.updateArp { c -> c.copy(steps = List(64) { ArpStep() }) } }) { Text("RESET 64") }
-                Button(onClick = { vm.updateArp { c -> c.copy(steps = c.steps.map { it.copy(enabled = !it.enabled) }) } }) { Text("INVERT") }
-            }
-        }
-        ArpPanel("GENERATIVE / EVOLVE") {
-            ArpSwitch("ADVANCED RANDOM", cfg.randomMode) { v -> vm.updateArp { c -> c.copy(randomMode = v) } }
-            ArpSwitch("EVOLVE", cfg.evolve) { v -> vm.updateArp { c -> c.copy(evolve = v) } }
-            Text("Random mutates probability, ratchets and octave per loop. Evolve applies slower mutations while preserving pattern identity.", color = Color.LightGray, fontSize = 9.sp)
-        }
-        ArpPanel("MODULATION MATRIX") {
-            Text("Route sequencer sources to any exposed synth parameter.", color = Color.LightGray, fontSize = 9.sp)
-            cfg.routes.forEachIndexed { index, route ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = {
-                        val sources = listOf("STEP", "VELOCITY", "PROBABILITY", "RANDOM", "PITCH")
-                        val nextSource = sources[(sources.indexOf(route.source).coerceAtLeast(0) + 1) % sources.size]
-                        vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it[index] = route.copy(source = nextSource) }) }
-                    }, colors = ButtonDefaults.buttonColors(containerColor = WalnutDark), modifier = Modifier.weight(0.34f)) { Text(route.source, fontSize = 8.sp) }
-                    Text(arpTargets.firstOrNull { it.first == route.target }?.second ?: "PARAM ${route.target}", color = Cream, fontSize = 9.sp, modifier = Modifier.weight(0.40f))
-                    Button(onClick = { vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it[index] = route.copy(bipolar = !route.bipolar) }) } }, colors = ButtonDefaults.buttonColors(containerColor = WalnutDark)) { Text(if (route.bipolar) "BI" else "UNI", fontSize = 8.sp) }
-                    Text("${(route.amount*100).toInt()}%", color = Cream, fontSize = 9.sp)
-                    Button(onClick = { vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it.removeAt(index) }) } }) { Text("×") }
+
+            // COLUMN 2 — 64 STEP GRID AND PER-STEP EDITOR
+            Column(Modifier.weight(0.34f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Section("64-STEP PATTERN") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("PATTERN GRID", color = Dim, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.weight(1f))
+                        Text("ACTIVE ${cfg.steps.count { it.enabled }} / 64", color = ElectricBlue, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        repeat(8) { row ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                repeat(8) { col ->
+                                    val i = row * 8 + col
+                                    val st = cfg.steps[i]
+                                    val cellColor = when {
+                                        i == selected -> ElectricBlue
+                                        !st.enabled -> Chassis
+                                        i % 8 == 0 -> Color(0xFF64502D)
+                                        else -> WalnutDark
+                                    }
+                                    Box(
+                                        Modifier.weight(1f).height(23.dp).clip(RoundedCornerShape(2.dp))
+                                            .background(cellColor).clickable { selected = i },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("%02d".format(i + 1),
+                                            color = if (i == selected) Color.Black else if (st.enabled) Cream else Dim,
+                                            fontSize = 7.sp,
+                                            fontWeight = if (i == selected || i % 4 == 0) FontWeight.Black else FontWeight.Normal)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        BarButton("ALL ON") { vm.updateArp { c -> c.copy(steps = c.steps.map { it.copy(enabled = true) }) } }
+                        BarButton("ALL OFF") { vm.updateArp { c -> c.copy(steps = c.steps.map { it.copy(enabled = false) }) } }
+                        BarButton("RESET") { vm.updateArp { c -> c.copy(steps = List(64) { ArpStep() }) } }
+                        BarButton("INVERT") { vm.updateArp { c -> c.copy(steps = c.steps.map { it.copy(enabled = !it.enabled) }) } }
+                    }
+                }
+
+                Section("STEP EDIT / ${selected + 1}") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("STEP ENABLE", color = Cream, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.weight(1f))
+                        Toggle("ON", step.enabled) { enabled -> editArpStep(vm, selected) { it.copy(enabled = enabled) } }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Knob("PROB", step.probability, { v -> editArpStep(vm, selected) { it.copy(probability = v) } },
+                            diameter = 32.dp, readout = "${(step.probability * 100).toInt()}%")
+                        Knob("VELOCITY", step.velocity, { v -> editArpStep(vm, selected) { it.copy(velocity = v) } },
+                            diameter = 32.dp, readout = "${(step.velocity * 100).toInt()}%")
+                        Knob("GATE", (step.gate - 0.05f) / 0.95f, { v -> editArpStep(vm, selected) { it.copy(gate = 0.05f + v * 0.95f) } },
+                            diameter = 32.dp, readout = "${(step.gate * 100).toInt()}%")
+                    }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        ArpCompactChoice("RATCHET", (1..8).map { "$it" }, step.ratchets - 1) {
+                            editArpStep(vm, selected) { c -> c.copy(ratchets = it + 1) }
+                        }
+                        ArpCompactChoice("OCTAVE", listOf("-2","-1","0","+1","+2"), step.octave + 2) {
+                            editArpStep(vm, selected) { c -> c.copy(octave = it - 2) }
+                        }
+                        ArpCompactChoice("SHIFT", (-12..12).map { "%+d".format(it) }, step.shift + 12, width = 68.dp) {
+                            editArpStep(vm, selected) { c -> c.copy(shift = it - 12) }
+                        }
+                    }
                 }
             }
-            var newRouteTarget by remember { mutableIntStateOf(0) }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("NEW DESTINATION", color = Cream, fontSize = 9.sp)
-                Button(onClick = { newRouteTarget = (newRouteTarget + 1) % arpTargets.size }, colors = ButtonDefaults.buttonColors(containerColor = WalnutDark)) {
-                    Text(arpTargets[newRouteTarget].second, fontSize = 8.sp)
+
+            // COLUMN 3 — GENERATION AND PERFORMANCE
+            Column(Modifier.weight(0.21f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Section("GENERATIVE") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Toggle("RANDOM", cfg.randomMode) { v -> vm.updateArp { it.copy(randomMode = v) } }
+                        Column(Modifier.weight(1f)) {
+                            Text("ADVANCED RANDOM", color = Cream, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                            Text("Per-loop probability / octave / ratchet mutation", color = Dim, fontSize = 7.sp)
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Toggle("EVOLVE", cfg.evolve) { v -> vm.updateArp { it.copy(evolve = v) } }
+                        Column(Modifier.weight(1f)) {
+                            Text("EVOLVE", color = Cream, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                            Text("Slow mutation, preserving pattern identity", color = Dim, fontSize = 7.sp)
+                        }
+                    }
                 }
-                Button(onClick = {
-                    val target = arpTargets[newRouteTarget].first
-                    if (cfg.routes.none { it.target == target }) vm.updateArp { c -> c.copy(routes = c.routes + ArpModRoute("STEP", target, 0.25f, true)) }
-                }) { Text("ADD ROUTE") }
+                Section("PERFORMANCE") {
+                    Text("HOLD toggles notes in the latch pool. Disable HOLD for normal key press/release behavior.", color = Dim, fontSize = 7.sp)
+                    Text("Ratchets, probability, gate and velocity are edited per step in the pattern editor.", color = Dim, fontSize = 7.sp)
+                }
+                Section("HISTORY") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        BarButton("UNDO") { vm.undo() }
+                        BarButton("REDO") { vm.redo() }
+                    }
+                    Text("Full synth + arp backup is available from the main screen.", color = Dim, fontSize = 7.sp)
+                }
             }
-            cfg.routes.forEachIndexed { index, route ->
-                ArpSlider("ROUTE ${index+1} AMOUNT", route.amount, -1f..1f, { amount -> vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it[index] = route.copy(amount = amount) }) } }, "%+.2f", 1f)
+
+            // COLUMN 4 — MODULATION MATRIX
+            Column(Modifier.weight(0.23f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Section("MODULATION MATRIX") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        ArpCompactChoice("SOURCE", arpSourceNames, newRouteSource, width = 75.dp) { newRouteSource = it }
+                        ArpCompactChoice("DESTINATION", arpTargets.map { it.second }, newRouteTarget, width = 92.dp) { newRouteTarget = it }
+                    }
+                    BarButton("ADD ROUTE") {
+                        val target = arpTargets[newRouteTarget].first
+                        if (cfg.routes.none { it.target == target }) {
+                            vm.updateArp { c -> c.copy(routes = c.routes + ArpModRoute(arpSourceNames[newRouteSource], target, 0.25f, true)) }
+                        }
+                    }
+                    Text("${cfg.routes.size} ROUTES", color = ElectricBlue, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                    if (cfg.routes.isEmpty()) {
+                        Text("No routes. Add a source and destination above.", color = Dim, fontSize = 7.sp)
+                    }
+                    cfg.routes.forEachIndexed { index, route ->
+                        Column(Modifier.fillMaxWidth().background(Chassis).padding(4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                ArpCompactChoice("SRC", arpSourceNames, arpSourceNames.indexOf(route.source).coerceAtLeast(0), width = 70.dp) { v ->
+                                    vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it[index] = route.copy(source = arpSourceNames[v]) }) }
+                                }
+                                Box(Modifier.weight(1f).padding(top = 8.dp).clickable {
+                                    val oldIndex = arpTargets.indexOfFirst { it.first == route.target }.coerceAtLeast(0)
+                                    val nextTarget = arpTargets[(oldIndex + 1) % arpTargets.size].first
+                                    vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it[index] = route.copy(target = nextTarget) }) }
+                                }) {
+                                    Text(arpTargets.firstOrNull { it.first == route.target }?.second ?: "PARAM ${route.target}",
+                                        color = Cream, fontSize = 7.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                BarButton(if (route.bipolar) "BI" else "UNI") {
+                                    vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it[index] = route.copy(bipolar = !it[index].bipolar) }) }
+                                }
+                                BarButton("X") { vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it.removeAt(index) }) } }
+                            }
+                            Knob("AMOUNT", (route.amount + 1f) * 0.5f,
+                                { v -> vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it[index] = route.copy(amount = v * 2f - 1f) }) } },
+                                diameter = 28.dp, readout = String.format(Locale.US, "%+.2f", route.amount))
+                        }
+                    }
+                }
             }
-        }
-        ArpPanel("STATE / HISTORY") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { vm.undo() }, enabled = vm.canUndo()) { Text("UNDO") }
-                Button(onClick = { vm.redo() }, enabled = vm.canRedo()) { Text("REDO") }
-            }
-            Text("Complete synth and arpeggiator state backup is available from the main screen.", color = Color.LightGray, fontSize = 9.sp)
         }
     }
 }
 
-private fun editStep(vm: SynthViewModel, index: Int, transform: (ArpStep) -> ArpStep) {
+private fun editArpStep(vm: SynthViewModel, index: Int, transform: (ArpStep) -> ArpStep) {
     vm.updateArp { c -> c.copy(steps = c.steps.toMutableList().also { it[index] = transform(it[index]) }) }
 }
 
 @Composable
-private fun ArpPanel(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().background(Panel).padding(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(title, color = ElectricBlue, fontSize = 11.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-        content()
-    }
-}
-
-@Composable
-private fun ArpChoice(label: String, options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
-    var index by remember(label, selected) { mutableIntStateOf(selected.coerceIn(0, options.lastIndex)) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = Cream, fontSize = 9.sp, modifier = Modifier.width(112.dp))
-        Button(onClick = { index = (index + 1).mod(options.size); onSelect(index) }, colors = ButtonDefaults.buttonColors(containerColor = WalnutDark)) { Text(options[index], fontSize = 9.sp) }
-    }
-}
-
-@Composable
-private fun ArpSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, onValue: (Float) -> Unit, format: String, scale: Float = 1f) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = Cream, fontSize = 9.sp, modifier = Modifier.width(112.dp))
-        Slider(value = value.coerceIn(range), onValueChange = onValue, valueRange = range, modifier = Modifier.weight(1f))
-        Text(String.format(format, value * scale), color = ElectricBlue, fontSize = 9.sp, modifier = Modifier.width(65.dp))
-    }
-}
-
-@Composable
-private fun ArpSwitch(label: String, value: Boolean, onValue: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = Cream, fontSize = 10.sp, modifier = Modifier.weight(1f))
-        Switch(checked = value, onCheckedChange = onValue)
+private fun ArpCompactChoice(
+    label: String,
+    options: List<String>,
+    selected: Int,
+    width: Dp = 58.dp,
+    onSelect: (Int) -> Unit
+) {
+    val index = selected.coerceIn(0, options.lastIndex)
+    Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, color = Dim, fontSize = 6.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Box(
+            Modifier.fillMaxWidth().height(22.dp).clip(RoundedCornerShape(2.dp))
+                .background(WalnutDark).clickable { onSelect((index + 1) % options.size) }
+                .padding(horizontal = 3.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(options[index], color = ElectricBlue, fontSize = 7.sp, fontWeight = FontWeight.Black,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
