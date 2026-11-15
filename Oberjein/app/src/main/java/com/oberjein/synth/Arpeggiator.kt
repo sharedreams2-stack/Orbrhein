@@ -49,18 +49,21 @@ data class ArpConfig(
 )
 
 /** UI-independent 64-step sequencer. Scheduler uses the main looper; note callbacks remain lock-free JNI calls. */
-class Arpeggiator(private val onNoteOn: (Int, Float) -> Unit, private val onNoteOff: (Int) -> Unit) {
+class Arpeggiator(
+    private val onNoteOn: (Int, Float) -> Unit,
+    private val onNoteOff: (Int) -> Unit,
+    private val onModulation: (Int, Float) -> Unit
+) {
     private val handler = Handler(Looper.getMainLooper())
     private val held = linkedSetOf<Int>()
     private val latched = linkedSetOf<Int>()
     private var config = ArpConfig()
     private var stepIndex = 0
     private var noteIndex = 0
-    private var lastNotes = mutableListOf<Int>()
+    private var modulatedTargets = emptySet<Int>()
     private var running = false
     private var generation = 0
     private var activeNotes = mutableSetOf<Int>()
-    private var evolveSeed = 0
 
     fun configure(value: ArpConfig) {
         val wasRunning = running
@@ -117,11 +120,27 @@ class Arpeggiator(private val onNoteOn: (Int, Float) -> Unit, private val onNote
     }
 
     private fun playStep() {
+        modulatedTargets.forEach { onModulation(it, 0f) }
         val pool = (if (config.hold) latched else held).toList().sorted()
         val notes = if (pool.isEmpty()) emptyList() else expandNotes(pool)
         if (notes.isNotEmpty()) {
             val step = config.steps[stepIndex.coerceIn(0, 63)]
             if (step.enabled && Random.nextFloat() <= step.probability.coerceIn(0f, 1f)) {
+                val newTargets = mutableSetOf<Int>()
+                config.routes.forEach { route ->
+                    if (route.target in 0 until P.COUNT) {
+                        val source = when (route.source.uppercase()) {
+                            "VELOCITY" -> step.velocity
+                            "PROBABILITY" -> step.probability
+                            "RANDOM" -> Random.nextFloat()
+                            "PITCH" -> ((notes[noteIndex.mod(notes.size)] % 12) / 11f)
+                            else -> stepIndex.toFloat() / (config.loopLength - 1).coerceAtLeast(1)
+                        }
+                        onModulation(route.target, (if (route.bipolar) source * 2f - 1f else source) * route.amount)
+                        newTargets.add(route.target)
+                    }
+                }
+                modulatedTargets = newTargets
                 val selected = when(config.direction) {
                     ArpDirection.UP -> notes[noteIndex.mod(notes.size)]
                     ArpDirection.DOWN -> notes[(notes.size - 1 - noteIndex.mod(notes.size))]
@@ -129,7 +148,7 @@ class Arpeggiator(private val onNoteOn: (Int, Float) -> Unit, private val onNote
                     ArpDirection.AS_PLAYED -> pool[noteIndex.mod(pool.size)]
                     ArpDirection.UP_DOWN, ArpDirection.DOWN_UP -> {
                         val sequence = if (notes.size < 2) notes else notes + notes.dropLast(1).drop(1).asReversed()
-                        sequence[noteIndex.mod(sequence.size)]
+                        if (config.direction == ArpDirection.DOWN_UP) sequence.asReversed()[noteIndex.mod(sequence.size)] else sequence[noteIndex.mod(sequence.size)]
                     }
                 }
                 val root = selected - selected.mod(12) + config.root
