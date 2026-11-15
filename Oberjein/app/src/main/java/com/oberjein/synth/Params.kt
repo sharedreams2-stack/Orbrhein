@@ -54,7 +54,10 @@ object P {
     const val VAM = 49
     const val PERSISTENT_VOICING = 50
     const val LEGATO = 51
-    const val COUNT = 52
+    const val OVERSAMPLING = 52
+    const val TRANSPOSE = 53
+    const val FINE_TUNE = 54
+    const val COUNT = 55
 }
 
 /** All values are normalized 0..1 (switches are 0 or 1). The DSP maps them to real units. */
@@ -72,6 +75,9 @@ val DEFAULTS: FloatArray = FloatArray(P.COUNT).also {
     it[P.LFO2_RATE] = 0.25f
     it[P.VOICE_COUNT] = 0.47f
     it[P.UNI_VOICES] = 0.47f
+    it[P.OVERSAMPLING] = 0f
+    it[P.TRANSPOSE] = 0.5f
+    it[P.FINE_TUNE] = 0.5f
 }
 
 class Preset(val name: String, val values: FloatArray)
