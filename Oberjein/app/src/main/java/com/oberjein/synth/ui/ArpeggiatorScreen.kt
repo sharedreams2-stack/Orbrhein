@@ -190,7 +190,7 @@ fun ArpeggiatorScreen(vm: SynthViewModel) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("STEP ENABLE", color = Cream, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
-                        Toggle("ON", step.enabled) { enabled -> editArpStep(vm, selected) { it.copy(enabled = enabled) } }
+                        Toggle("ON", step.enabled, onChange = { enabled -> editArpStep(vm, selected) { it.copy(enabled = enabled) } })
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
                         Knob("PROB", step.probability, { v -> editArpStep(vm, selected) { it.copy(probability = v) } },
@@ -218,14 +218,14 @@ fun ArpeggiatorScreen(vm: SynthViewModel) {
             Column(Modifier.weight(0.21f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Section("GENERATIVE") {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Toggle("RANDOM", cfg.randomMode) { v -> vm.updateArp { it.copy(randomMode = v) } }
+                        Toggle("RANDOM", cfg.randomMode, onChange = { v -> vm.updateArp { it.copy(randomMode = v) } })
                         Column(Modifier.weight(1f)) {
                             Text("ADVANCED RANDOM", color = Cream, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                             Text("Per-loop probability / octave / ratchet mutation", color = Dim, fontSize = 7.sp)
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Toggle("EVOLVE", cfg.evolve) { v -> vm.updateArp { it.copy(evolve = v) } }
+                        Toggle("EVOLVE", cfg.evolve, onChange = { v -> vm.updateArp { it.copy(evolve = v) } })
                         Column(Modifier.weight(1f)) {
                             Text("EVOLVE", color = Cream, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                             Text("Slow mutation, preserving pattern identity", color = Dim, fontSize = 7.sp)
