@@ -1,4 +1,4 @@
-// Oberjein DSP core: 8-voice virtual-analog polysynth (OB-8 style).
+// Oberjein DSP core: 16-voice virtual-analog polysynth with selectable 1x/2x/4x rendering.
 // Header-only, allocation-free and lock-free on the audio thread.
 #pragma once
 #include <algorithm>
