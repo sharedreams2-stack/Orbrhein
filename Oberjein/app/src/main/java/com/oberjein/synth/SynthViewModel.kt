@@ -120,6 +120,7 @@ class SynthViewModel : ViewModel() {
     fun panic() { arpeggiator.panic(); SynthEngine.nativeAllNotesOff(); MidiBridge.send(byteArrayOf(0xB0.toByte(), 123, 0)) }
 
     fun exportStateJson(): String {
+        val savedArp = arpeggiator.currentConfig()
         val root = JSONObject()
         root.put("format", "oberjein-state-v1")
         root.put("parameters", JSONArray(values.toList()))
@@ -127,13 +128,13 @@ class SynthViewModel : ViewModel() {
         root.put("octave", octave)
         root.put("midiMappings", JSONObject().also { obj -> midiMappings.forEach { (cc, id) -> obj.put(cc.toString(), id) } })
         val a = JSONObject()
-        a.put("enabled", arpConfig.enabled); a.put("hold", arpConfig.hold); a.put("bpm", arpConfig.bpm)
-        a.put("division", arpConfig.division); a.put("direction", arpConfig.direction.name)
-        a.put("octaveRange", arpConfig.octaveRange); a.put("scale", arpConfig.scale.name); a.put("root", arpConfig.root)
-        a.put("chordSize", arpConfig.chordSize); a.put("strumMs", arpConfig.strumMs); a.put("intervalShift", arpConfig.intervalShift)
-        a.put("randomMode", arpConfig.randomMode); a.put("evolve", arpConfig.evolve); a.put("loopLength", arpConfig.loopLength); a.put("humanize", arpConfig.humanize)
-        a.put("steps", JSONArray().also { arr -> arpConfig.steps.forEach { st -> arr.put(JSONObject().put("enabled",st.enabled).put("probability",st.probability).put("ratchets",st.ratchets).put("octave",st.octave).put("velocity",st.velocity).put("gate",st.gate).put("shift",st.shift)) } })
-        a.put("routes", JSONArray().also { arr -> arpConfig.routes.forEach { route -> arr.put(JSONObject().put("source",route.source).put("target",route.target).put("amount",route.amount).put("bipolar",route.bipolar)) } })
+        a.put("enabled", savedArp.enabled); a.put("hold", savedArp.hold); a.put("bpm", savedArp.bpm)
+        a.put("division", savedArp.division); a.put("direction", savedArp.direction.name)
+        a.put("octaveRange", savedArp.octaveRange); a.put("scale", savedArp.scale.name); a.put("root", savedArp.root)
+        a.put("chordSize", savedArp.chordSize); a.put("strumMs", savedArp.strumMs); a.put("intervalShift", savedArp.intervalShift)
+        a.put("randomMode", savedArp.randomMode); a.put("evolve", savedArp.evolve); a.put("loopLength", savedArp.loopLength); a.put("humanize", savedArp.humanize)
+        a.put("steps", JSONArray().also { arr -> savedArp.steps.forEach { st -> arr.put(JSONObject().put("enabled",st.enabled).put("probability",st.probability).put("ratchets",st.ratchets).put("octave",st.octave).put("velocity",st.velocity).put("gate",st.gate).put("shift",st.shift)) } })
+        a.put("routes", JSONArray().also { arr -> savedArp.routes.forEach { route -> arr.put(JSONObject().put("source",route.source).put("target",route.target).put("amount",route.amount).put("bipolar",route.bipolar)) } })
         root.put("arpeggiator", a)
         return root.toString(2)
     }
