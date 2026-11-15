@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include "fx_engine.h"
 
 namespace ob {
 
@@ -133,7 +134,11 @@ public:
         for (auto& p : params_) p.store(0.0f);
     }
 
-    void setSampleRate(float sr) { sr_ = sr; }
+    void setSampleRate(float sr) { sr_ = sr; fx_.setSampleRate(sr); }
+    void setFxParam(int id, float value) { fx_.setParam(id, value); }
+    void fxTapTempo(float bpm) { fx_.tapTempo(bpm); }
+    void fxHold(bool enabled) { fx_.setHold(enabled); }
+    void fxLooperCommand(int command) { fx_.commandLooper(static_cast<FxEngine::LoopCommand>(std::clamp(command, 0, 4))); }
 
     // ---- control API (any thread) ----
     void setParam(int id, float v) {
@@ -196,6 +201,7 @@ public:
                     r += decimatorR_[index] * coeff[tap];
                 }
             }
+            fx_.process(l, r);
             const float g = volSm_ * q_.master;
             out[2 * n] = fastTanh(l * g);
             out[2 * n + 1] = fastTanh(r * g);
@@ -538,6 +544,7 @@ private:
     std::atomic<uint32_t> head_{0}, tail_{0};
     std::atomic_flag lock_ = ATOMIC_FLAG_INIT;
 
+    FxEngine fx_;
     std::array<std::atomic<float>, P_COUNT> params_;
     std::array<Voice, kNumVoices> voices_;
     std::array<int, 16> stack_{};
