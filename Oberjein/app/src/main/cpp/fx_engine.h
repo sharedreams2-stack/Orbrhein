@@ -251,8 +251,9 @@ public:
         if (!enabled && bypass == 1) bypassFade_ = std::max(0.0f, bypassFade_ - 0.0002f);
         else if (enabled) bypassFade_ = 1.0f;
         const float effectMaster = param(FX_MASTER);
-        float outL = (dryL * (1.0f - mix) + wetL * mix) * effectMaster;
-        float outR = (dryR * (1.0f - mix) + wetR * mix) * effectMaster;
+        // The secondary master affects only the processed path; bypass keeps dry unity gain.
+        float outL = dryL * (1.0f - mix) + wetL * mix * effectMaster;
+        float outR = dryR * (1.0f - mix) + wetR * mix * effectMaster;
         if (stereoMode == 0 || stereoMode == 3) { const float mono = 0.5f * (outL + outR); outL = mono; outR = mono; }
 
         if (loopRecording_ || loopOverdub_) {
