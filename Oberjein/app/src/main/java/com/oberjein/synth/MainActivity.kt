@@ -2,6 +2,10 @@ package com.oberjein.synth
 
 import android.os.Bundle
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,10 +18,14 @@ import com.oberjein.synth.ui.MainScreen
 import com.oberjein.synth.ui.OberjeinTheme
 
 class MainActivity : ComponentActivity() {
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
     private val vm: SynthViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         getSharedPreferences("oberjein_state", MODE_PRIVATE).getString("current", null)?.let { saved -> runCatching { vm.restoreStateJson(saved) } }
         enableEdgeToEdge()
         WindowCompat.getInsetsController(window, window.decorView).apply {
