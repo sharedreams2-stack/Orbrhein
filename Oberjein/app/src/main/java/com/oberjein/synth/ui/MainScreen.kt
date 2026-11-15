@@ -51,7 +51,8 @@ fun MainScreen(vm: SynthViewModel) {
                 }
                 Section("GLOBAL", Modifier.weight(0.36f)) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        K(vm, P.UNI_DETUNE, "SPREAD")
+                        K(vm, P.SPREAD, "SPREAD")
+                        K(vm, P.UNI_DETUNE, "UNI DETUNE")
                         T(vm, P.UNISON, "UNISON")
                         K(vm, P.PORTA, "GLIDE")
                     }
@@ -65,13 +66,14 @@ fun MainScreen(vm: SynthViewModel) {
                             T(vm, P.VCO1_PULSE, "PULSE")
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            K(vm, P.VCO2_LEVEL, "OSC 2")
                             T(vm, P.VCO2_SAW, "SAW")
                             T(vm, P.VCO2_PULSE, "PULSE")
                         }
                         K(vm, P.PWM, "PW")
                         K(vm, P.VCO2_SEMI, "SEMITONE")
                         K(vm, P.VCO2_DETUNE, "DETUNE")
+                        K(vm, P.XMOD, "XMOD")
+                        K(vm, P.BRIGHT, "BRIGHT")
                         T(vm, P.SYNC, "SYNC")
                     }
                 }
