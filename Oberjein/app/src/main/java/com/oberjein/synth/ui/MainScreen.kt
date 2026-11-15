@@ -35,7 +35,8 @@ private fun K(vm: SynthViewModel, id: Int, label: String) {
 
 @Composable
 private fun T(vm: SynthViewModel, id: Int, label: String) {
-    Toggle(label, vm.values[id] > 0.5f, { vm.set(id, if (it) 1f else 0f) })
+    val enabled = !(id == P.FILTER_BP && vm.values[P.LP24] > 0.5f)
+    Toggle(label, vm.values[id] > 0.5f, { vm.set(id, if (it) 1f else 0f) }, enabled = enabled)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
