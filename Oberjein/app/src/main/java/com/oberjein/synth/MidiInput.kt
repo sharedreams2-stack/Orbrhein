@@ -49,8 +49,10 @@ class MidiInput(private val context: Context, private val vm: SynthViewModel) {
 
     private fun open(info: MidiDeviceInfo) {
         val props = info.properties
-        if (props.getString(MidiDeviceInfo.PROPERTY_MANUFACTURER) == "Shared Dreams" &&
-            props.getString(MidiDeviceInfo.PROPERTY_PRODUCT) == "Oberjein Virtual Synth") return
+        val manufacturer = props.getString(MidiDeviceInfo.PROPERTY_MANUFACTURER).orEmpty()
+        val product = props.getString(MidiDeviceInfo.PROPERTY_PRODUCT).orEmpty()
+        val name = props.getString(MidiDeviceInfo.PROPERTY_NAME).orEmpty()
+        if (manufacturer == "Shared Dreams" && (product.contains("Oberjein", true) || name.contains("Oberjein", true))) return
         if (info.outputPortCount == 0 || !openedIds.add(info.id)) return
         manager?.openDevice(info, { device ->
             if (device != null) {
