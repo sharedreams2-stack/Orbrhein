@@ -52,7 +52,8 @@ data class ArpConfig(
 class Arpeggiator(
     private val onNoteOn: (Int, Float) -> Unit,
     private val onNoteOff: (Int) -> Unit,
-    private val onModulation: (Int, Float) -> Unit
+    private val onModulation: (Int, Float) -> Unit,
+    private val onPatternChanged: (List<ArpStep>) -> Unit
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private val held = linkedSetOf<Int>()
@@ -161,7 +162,8 @@ class Arpeggiator(
                 val duration = max(12L, (stepMs / ratchets * step.gate).toLong())
                 chord.forEachIndexed { chordIndex, n ->
                     val shifted = (n + step.octave * 12).coerceIn(0, 127)
-                    val startDelay = chordIndex * config.strumMs.toLong()
+                    val strumStep = (stepMs / chord.size.coerceAtLeast(1)).toLong().coerceAtLeast(0L)
+                    val startDelay = chordIndex * minOf(config.strumMs.toLong(), strumStep)
                     handler.postDelayed({
                         onNoteOn(shifted, (step.velocity).coerceIn(0f, 1f))
                         activeNotes.add(shifted)
@@ -206,6 +208,7 @@ class Arpeggiator(
                 octave = if (Random.nextFloat() < 0.2f) Random.nextInt(-1, 2) else step.octave
             )
             config = config.copy(steps = copy)
+            onPatternChanged(copy)
         }
     }
 }
