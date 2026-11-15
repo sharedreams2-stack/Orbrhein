@@ -11,4 +11,8 @@ object SynthEngine {
     external fun nativeNoteOff(note: Int)
     external fun nativeAllNotesOff()
     external fun nativePitchBend(value: Float)
+    external fun nativeSetFxParam(id: Int, value: Float)
+    external fun nativeFxTapTempo(bpm: Float)
+    external fun nativeFxHold(enabled: Boolean)
+    external fun nativeFxLooperCommand(command: Int)
 }
