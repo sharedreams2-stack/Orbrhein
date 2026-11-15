@@ -149,7 +149,7 @@ private fun ArpPanel(title: String, content: @Composable ColumnScope.() -> Unit)
 
 @Composable
 private fun ArpChoice(label: String, options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
-    var index by remember(label) { mutableIntStateOf(selected.coerceIn(0, options.lastIndex)) }
+    var index by remember(label, selected) { mutableIntStateOf(selected.coerceIn(0, options.lastIndex)) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = Cream, fontSize = 9.sp, modifier = Modifier.width(112.dp))
         Button(onClick = { index = (index + 1).mod(options.size); onSelect(index) }, colors = ButtonDefaults.buttonColors(containerColor = WalnutDark)) { Text(options[index], fontSize = 9.sp) }
