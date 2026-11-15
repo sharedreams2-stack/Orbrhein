@@ -22,7 +22,9 @@ object FxP {
     const val STEREO_MODE = 18
     const val TEMPO = 19
     const val TEMPO_MODE = 20
-    const val COUNT = 21
+    const val FX_MASTER = 21
+    const val LOOP_FADE = 22
+    const val COUNT = 23
 }
 
 enum class FxFamily(val title: String, val effects: IntRange) {
