@@ -147,18 +147,53 @@ public:
     // ---- audio thread: interleaved stereo float ----
     void render(float* out, int frames) {
         drainEvents();
+        static constexpr float fir2[15] = {
+            0.0f, 0.0f, 0.005758462f, 0.0f, -0.048720975f, 0.0f, 0.292961742f,
+            0.500001543f, 0.292961742f, 0.0f, -0.048720975f, 0.0f, 0.005758462f, 0.0f, 0.0f
+        };
+        static constexpr float fir4[31] = {
+            0.0f, -0.000091147f, -0.000290069f, 0.0f, 0.001576655f, 0.004137030f,
+            0.005019806f, 0.0f, -0.012666079f, -0.027038521f, -0.028353120f, 0.0f,
+            0.063699249f, 0.148026618f, 0.221009744f, 0.249939669f, 0.221009744f,
+            0.148026618f, 0.063699249f, 0.0f, -0.028353120f, -0.027038521f,
+            -0.012666079f, 0.0f, 0.005019806f, 0.004137030f, 0.001576655f,
+            0.0f, -0.000290069f, -0.000091147f, 0.0f
+        };
         for (int n = 0; n < frames; ++n) {
             if (ctrl_ == 0) { updateControl(); ctrl_ = kCtrlRate; }
             --ctrl_;
             volSm_ += (q_.volume - volSm_) * 0.002f;
-            float l = 0.0f, r = 0.0f;
             const int factor = q_.oversampling;
+            if (factor != lastOversampling_) {
+                decimatorL_.fill(0.0f);
+                decimatorR_.fill(0.0f);
+                decimatorCursor_ = 0;
+                lastOversampling_ = factor;
+            }
+            float l = 0.0f, r = 0.0f;
             for (int sub = 0; sub < factor; ++sub) {
+                float subL = 0.0f, subR = 0.0f;
                 for (auto& v : voices_) {
                     if (!v.active()) continue;
-                    const float sample = tickVoice(v) / static_cast<float>(factor);
-                    l += sample * v.gl;
-                    r += sample * v.gr;
+                    const float sample = tickVoice(v);
+                    subL += sample * v.gl;
+                    subR += sample * v.gr;
+                }
+                if (factor == 1) {
+                    l = subL; r = subR;
+                } else {
+                    decimatorL_[decimatorCursor_] = subL;
+                    decimatorR_[decimatorCursor_] = subR;
+                    decimatorCursor_ = (decimatorCursor_ + 1) % 32;
+                }
+            }
+            if (factor > 1) {
+                const float* coeff = factor == 2 ? fir2 : fir4;
+                const int taps = factor == 2 ? 15 : 31;
+                for (int tap = 0; tap < taps; ++tap) {
+                    const int index = (decimatorCursor_ + 32 - 1 - tap) % 32;
+                    l += decimatorL_[index] * coeff[tap];
+                    r += decimatorR_[index] * coeff[tap];
                 }
             }
             const float g = volSm_ * q_.master;
@@ -510,6 +545,8 @@ private:
     Snap q_;
     float sr_ = 48000.0f, volSm_ = 0.0f, lfoPhase_ = 0.0f, lfo_ = 0.0f, shValue_ = 0.0f;
     float lfo2Phase_ = 0.0f, lfo2_ = 0.0f, shValue2_ = 0.0f, bend_ = 0.0f;
+    std::array<float, 32> decimatorL_{}, decimatorR_{};
+    int decimatorCursor_ = 0, lastOversampling_ = 1;
     int ctrl_ = 0;
     uint64_t counter_ = 0;
     uint32_t rng_ = 22222u;
