@@ -15,6 +15,7 @@ import androidx.core.app.NotificationCompat
 /** Keeps the synth engine and MIDI input alive while the Activity is backgrounded or locked. */
 class OberjeinAudioService : Service() {
     private var midiInput: MidiInput? = null
+    private var midiViewModel: SynthViewModel? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var engineStarted = false
 
@@ -39,8 +40,11 @@ class OberjeinAudioService : Service() {
             stopPlaybackAndSelf()
             return START_NOT_STICKY
         }
-        if (midiInput == null) {
-            MidiBridge.currentViewModel()?.let { midiInput = MidiInput(this, it).also { input -> input.start() } }
+        val activeVm = MidiBridge.currentViewModel()
+        if (activeVm != null && midiViewModel !== activeVm) {
+            midiInput?.stop()
+            midiInput = MidiInput(this, activeVm).also { it.start() }
+            midiViewModel = activeVm
         }
         return START_STICKY
     }
@@ -48,6 +52,7 @@ class OberjeinAudioService : Service() {
     private fun stopPlaybackAndSelf() {
         midiInput?.stop()
         midiInput = null
+        midiViewModel = null
         runCatching { SynthEngine.nativeAllNotesOff(); SynthEngine.nativeStop() }
         engineStarted = false
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -57,6 +62,7 @@ class OberjeinAudioService : Service() {
     override fun onDestroy() {
         midiInput?.stop()
         midiInput = null
+        midiViewModel = null
         if (engineStarted) runCatching { SynthEngine.nativeAllNotesOff(); SynthEngine.nativeStop() }
         engineStarted = false
         wakeLock?.let { if (it.isHeld) it.release() }
