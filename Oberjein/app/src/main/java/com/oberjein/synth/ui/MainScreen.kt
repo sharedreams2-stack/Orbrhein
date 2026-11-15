@@ -92,7 +92,12 @@ fun MainScreen(vm: SynthViewModel) {
                         K(vm, P.RESO, "RESONANCE")
                         K(vm, P.FENV_AMT, "ENV AMT")
                         K(vm, P.KEYTRACK, "KEY")
-                        T(vm, P.POLES, "24 dB")
+                        K(vm, P.FILTER_MIX, "MIX")
+                        K(vm, P.FILTER_MULTI, "SLOPE")
+                        T(vm, P.LP24, "LP24")
+                        T(vm, P.FILTER_BP, "BP")
+                        T(vm, P.FENV_INVERT, "ENV INV")
+                        K(vm, P.SELF_OSC, "SELF OSC")
                     }
                 }
                 Section("MODULATION", Modifier.weight(0.45f)) {
