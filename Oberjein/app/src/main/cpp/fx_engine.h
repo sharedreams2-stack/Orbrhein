@@ -268,9 +268,11 @@ public:
         }
         if (loopPlaying_ && loopLength_ > 0) {
             const size_t pos = param(REVERSE) > 0.5f ? (loopLength_ - 1 - loopRead_) : loopRead_;
-            const float level = param(LOOP_LEVEL);
+            const float fade = loopFadeRemaining_ > 0 ? static_cast<float>(loopFadeRemaining_) / static_cast<float>(loopFadeTotal_) : 1.0f;
+            const float level = param(LOOP_LEVEL) * fade;
             outL += loopL_[pos] * level; outR += loopR_[pos] * level;
             loopRead_ = (loopRead_ + 1) % loopLength_;
+            if (loopFadeRemaining_ > 0 && --loopFadeRemaining_ == 0) loopPlaying_ = false;
         }
 
         left = std::clamp(outL, -4.0f, 4.0f);
@@ -296,11 +298,17 @@ private:
     void applyLoopCommand(int command) {
         if (command < 0) return;
         switch (command) {
-            case LOOP_STOP: loopPlaying_ = false; loopRecording_ = false; loopOverdub_ = false; break;
-            case LOOP_RECORD: loopWrite_ = 0; loopLength_.store(0); loopRecording_ = true; loopOverdub_ = false; loopPlaying_ = false; break;
+            case LOOP_STOP:
+                loopRecording_ = false; loopOverdub_ = false;
+                if (loopPlaying_ && loopLength_ > 0) {
+                    loopFadeTotal_ = std::max<size_t>(1, static_cast<size_t>(sr_ * (0.03f + param(LOOP_FADE) * 2.0f)));
+                    loopFadeRemaining_ = loopFadeTotal_;
+                } else loopPlaying_ = false;
+                break;
+            case LOOP_RECORD: loopWrite_ = 0; loopLength_.store(0); loopFadeRemaining_ = 0; loopRecording_ = true; loopOverdub_ = false; loopPlaying_ = false; break;
             case LOOP_PLAY: loopRead_ = 0; loopRecording_ = false; loopPlaying_ = loopLength_ > 0; loopOverdub_ = false; break;
             case LOOP_DUB: if (loopLength_ > 0) { loopWrite_ = 0; loopDubRemaining_ = loopLength_; loopRecording_ = false; loopPlaying_ = true; loopOverdub_ = true; } break;
-            case LOOP_ERASE: loopPlaying_ = loopRecording_ = loopOverdub_ = false; loopWrite_ = loopRead_ = 0; loopLength_.store(0); break;
+            case LOOP_ERASE: loopPlaying_ = loopRecording_ = loopOverdub_ = false; loopFadeRemaining_ = 0; loopWrite_ = loopRead_ = 0; loopLength_.store(0); break;
         }
     }
 
@@ -310,7 +318,7 @@ private:
     size_t delayWrite_ = 0, holdWrite_ = 0, holdRead_ = 0, holdLength_ = 0;
     std::atomic<bool> holdRequest_{false};
     bool holdActive_ = false;
-    size_t loopWrite_ = 0, loopRead_ = 0, loopDubRemaining_ = 0;
+    size_t loopWrite_ = 0, loopRead_ = 0, loopDubRemaining_ = 0, loopFadeRemaining_ = 0, loopFadeTotal_ = 1;
     std::atomic<size_t> loopLength_{0};
     bool loopRecording_ = false, loopPlaying_ = false, loopOverdub_ = false;
     std::atomic<int> loopCommand_{-1};
