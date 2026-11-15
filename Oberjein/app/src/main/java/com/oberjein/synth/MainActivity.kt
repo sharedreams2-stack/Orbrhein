@@ -18,6 +18,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        getSharedPreferences("oberjein_state", MODE_PRIVATE).getString("current", null)?.let { saved -> runCatching { vm.restoreStateJson(saved) } }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enableEdgeToEdge()
         WindowCompat.getInsetsController(window, window.decorView).apply {
@@ -31,13 +32,18 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         vm.pushAll()
         SynthEngine.nativeStart()
+        MidiBridge.attach(vm)
+        vm.resumeArpeggiator()
         midi = MidiInput(this, vm).also { it.start() }
     }
 
     override fun onStop() {
         super.onStop()
+        getSharedPreferences("oberjein_state", MODE_PRIVATE).edit().putString("current", vm.exportStateJson()).apply()
+        vm.pauseArpeggiator()
         SynthEngine.nativeAllNotesOff()
         SynthEngine.nativeStop()
+        MidiBridge.detach(vm)
         midi?.stop()
         midi = null
     }
