@@ -195,8 +195,15 @@ private:
         q.saw2 = P(P_VCO2_SAW) > 0.5f;   q.pulse2 = P(P_VCO2_PULSE) > 0.5f;
         q.sync = P(P_SYNC) > 0.5f;       q.lp24 = P(P_LP24) > 0.5f;
         q.bp = P(P_FILTER_BP) > 0.5f && !q.lp24;
+        const int previousVoiceCount = q.voiceCount;
         q.voiceCount = std::clamp(1 + static_cast<int>(std::lround(P(P_VOICE_COUNT) * 15.0f)), 1, kNumVoices);
         q.uniVoices = std::clamp(1 + static_cast<int>(std::lround(P(P_UNI_VOICES) * 15.0f)), 1, kNumVoices);
+        if (!q.unison && q.voiceCount < previousVoiceCount) {
+            for (int i = q.voiceCount; i < previousVoiceCount; ++i) {
+                voices_[i].gate = false;
+                voices_[i].fenv.gateOff(); voices_[i].aenv.gateOff();
+            }
+        }
         q.vam = P(P_VAM) > 0.5f ? 1 : 0;
         q.persistent = P(P_PERSISTENT_VOICING) > 0.5f;
         q.legato = std::clamp(static_cast<int>(std::lround(P(P_LEGATO) * 3.0f)), 0, 3);
@@ -355,7 +362,7 @@ private:
     }
 
     void handleNoteOn(int note, float vel) {
-        if (q_.legato > 0) {
+        if (q_.legato > 0 && !q_.unison) {
             // Legato is a one-voice priority mode with an ordered held-note stack.
             const bool was = voices_[0].active() && voices_[0].gate;
             removeFromStack(note);
@@ -413,7 +420,7 @@ private:
     }
 
     void handleNoteOff(int note) {
-        if (q_.legato > 0) {
+        if (q_.legato > 0 && !q_.unison) {
             removeFromStack(note);
             Voice& v = voices_[0];
             if (stackSize_ == 0) {
