@@ -66,7 +66,7 @@ class Arpeggiator(
     private var activeNotes = mutableSetOf<Int>()
 
     fun configure(value: ArpConfig, autoStart: Boolean = true) {
-        config = value.copy(steps = value.steps.take(64).let { it + List(max(0, 64-it.size)) { ArpStep() } })
+        config = value.copy(steps = value.steps.take(64).let { currentSteps -> currentSteps + List((64 - currentSteps.size).coerceAtLeast(0)) { ArpStep() } })
         if (!config.enabled && running) stop() else if (config.enabled && !running && autoStart) start()
     }
 
