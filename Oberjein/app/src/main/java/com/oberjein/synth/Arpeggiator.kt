@@ -102,9 +102,12 @@ class Arpeggiator(
         handler.removeCallbacksAndMessages(null)
         activeNotes.toList().forEach(onNoteOff)
         activeNotes.clear()
+        modulatedTargets.forEach { onModulation(it, 0f) }
+        modulatedTargets = emptySet()
     }
 
     fun currentStep() = stepIndex
+    fun currentConfig() = config
     fun isRunning() = running
 
     private fun schedule(token: Int, delay: Long) {
