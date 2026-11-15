@@ -41,7 +41,7 @@ data class FxUserPreset(val name: String, val values: List<Float>)
 
 val FX_DEFAULTS = listOf(
     0f, 0f, 0f, 0.35f, 0.4f, 0.35f, 0.5f, 0.7f, 0.35f, 0.25f, 0.7f,
-    0.15f, 0.35f, 0.2f, 0f, 0f, 0f, 0f, 0f, 120f, 0f
+    0.15f, 0.35f, 0.2f, 0f, 0f, 0f, 0f, 0f, 120f, 0f, 0.8f, 0.4f
 )
 
 private fun fxPreset(name: String, effect: Int, activity: Float, repeats: Float, shape: Float, time: Float) =
