@@ -20,8 +20,14 @@ class SynthViewModel : ViewModel() {
     val midiMappings = mutableStateMapOf<Int, Int>()
     var arpConfig by mutableStateOf(ArpConfig()); private set
     var showArp by mutableStateOf(false)
+    var showFx by mutableStateOf(false)
+    val fxValues = mutableStateListOf<Float>().apply { addAll(FX_DEFAULTS) }
+    val fxUserPresets = mutableStateListOf<FxUserPreset>().apply { repeat(16) { add(FxUserPreset("USER ${(it + 1).toString().padStart(2, '0')}", FX_DEFAULTS)) } }
+    private val tapTimes = ArrayDeque<Long>()
+    var fxHoldActive by mutableStateOf(false); private set
+    var fxLoopState by mutableIntStateOf(0); private set
     var arpStep by mutableIntStateOf(0); private set
-    private data class Snapshot(val values: List<Float>, val arp: ArpConfig, val mappings: Map<Int, Int>, val preset: Int, val octave: Int)
+    private data class Snapshot(val values: List<Float>, val arp: ArpConfig, val mappings: Map<Int, Int>, val preset: Int, val octave: Int, val fx: List<Float>, val fxUsers: List<FxUserPreset>)
     private val undoStack = ArrayDeque<Snapshot>()
     private val redoStack = ArrayDeque<Snapshot>()
     private val arpeggiator = Arpeggiator(
@@ -33,7 +39,7 @@ class SynthViewModel : ViewModel() {
 
     val firstNote: Int get() = 12 * (octave + 1)
 
-    private fun snapshot() = Snapshot(values.toList(), arpConfig, midiMappings.toMap(), presetIndex, octave)
+    private fun snapshot() = Snapshot(values.toList(), arpConfig, midiMappings.toMap(), presetIndex, octave, fxValues.toList(), fxUserPresets.toList())
     private fun remember() { undoStack.addLast(snapshot()); while (undoStack.size > 100) undoStack.removeFirst(); redoStack.clear() }
     fun canUndo() = undoStack.isNotEmpty()
     fun canRedo() = redoStack.isNotEmpty()
@@ -41,6 +47,8 @@ class SynthViewModel : ViewModel() {
         s.values.forEachIndexed { id, v -> values[id] = v }
         presetIndex = s.preset; octave = s.octave
         midiMappings.clear(); midiMappings.putAll(s.mappings)
+        s.fx.forEachIndexed { id, value -> fxValues[id] = value; SynthEngine.nativeSetFxParam(id, value) }
+        s.fxUsers.forEachIndexed { index, preset -> fxUserPresets[index] = preset }
         SynthEngine.nativeAllNotesOff(); pushAll()
         arpConfig = s.arp; arpeggiator.configure(arpConfig)
     }
@@ -66,7 +74,50 @@ class SynthViewModel : ViewModel() {
     fun toggleArp() { updateArp { it.copy(enabled = !it.enabled) } }
     fun arpNoteOn(note: Int, velocity: Float) = arpeggiator.noteOn(note, velocity)
     fun arpNoteOff(note: Int) = arpeggiator.noteOff(note)
-    fun setArpPage(show: Boolean) { showArp = show }
+    fun setArpPage(show: Boolean) { showArp = show; if (show) showFx = false }
+    fun setFxPage(show: Boolean) { showFx = show; if (show) showArp = false }
+
+    fun setFx(id: Int, value: Float) {
+        if (id !in fxValues.indices) return
+        val v = if (id == FxP.TEMPO) value.coerceIn(30f, 300f) else value.coerceIn(0f, 1f)
+        if (kotlin.math.abs(fxValues[id] - v) < 0.0001f) return
+        remember(); fxValues[id] = v; SynthEngine.nativeSetFxParam(id, v)
+    }
+
+    fun selectFxEffect(effect: Int, variation: Int) {
+        val index = (effect.coerceIn(0, 10) * 4 + variation.coerceIn(0, 3)).coerceIn(0, FX_FACTORY_PRESETS.lastIndex)
+        val preset = FX_FACTORY_PRESETS[index]
+        remember()
+        preset.values.forEachIndexed { id, value -> fxValues[id] = value; SynthEngine.nativeSetFxParam(id, value) }
+    }
+
+    fun tapFxTempo(now: Long = android.os.SystemClock.elapsedRealtime()) {
+        if (tapTimes.isNotEmpty() && now - tapTimes.last() > 2500L) tapTimes.clear()
+        if (tapTimes.isNotEmpty()) {
+            val delta = now - tapTimes.last()
+            if (delta in 250L..2000L) {
+                tapTimes.addLast(now); while (tapTimes.size > 5) tapTimes.removeFirst()
+                val intervals = tapTimes.zipWithNext { a, b -> b - a }
+                val bpm = (60000.0 / intervals.average()).toFloat().coerceIn(30f, 240f)
+                setFx(FxP.TEMPO, bpm); SynthEngine.nativeFxTapTempo(bpm)
+            } else { tapTimes.clear(); tapTimes.addLast(now) }
+        } else tapTimes.addLast(now)
+    }
+
+    fun toggleFxHold() { fxHoldActive = !fxHoldActive; SynthEngine.nativeFxHold(fxHoldActive) }
+    fun fxLooperCommand(command: Int) {
+        SynthEngine.nativeFxLooperCommand(command)
+        fxLoopState = when (command) { 1 -> 1; 2,3 -> 2; else -> 0 }
+    }
+    fun saveFxUserPreset(slot: Int, name: String? = null) {
+        if (slot !in 0..15) return
+        remember()
+        fxUserPresets[slot] = FxUserPreset(name?.take(20)?.ifBlank { "USER ${slot + 1}" } ?: "USER ${(slot + 1).toString().padStart(2, '0')}", fxValues.toList())
+    }
+    fun loadFxUserPreset(slot: Int) {
+        if (slot !in 0..15) return
+        remember(); fxUserPresets[slot].values.forEachIndexed { id, value -> fxValues[id] = value; SynthEngine.nativeSetFxParam(id, value) }
+    }
 
 
     fun pushAll() = values.forEachIndexed { id, v -> SynthEngine.nativeSetParam(id, v) }
@@ -98,7 +149,8 @@ class SynthViewModel : ViewModel() {
         val target = midiMappings[controller]
         if (target != null) {
             val normalized = value.coerceIn(0, 127) / 127f
-            set(target, if (target == P.OVERSAMPLING) (normalized * 2f).roundToInt() / 2f else normalized)
+            if (target >= P.COUNT) setFx(target - P.COUNT, normalized)
+            else set(target, if (target == P.OVERSAMPLING) (normalized * 2f).roundToInt() / 2f else normalized)
         } else if (controller == 1) {
             set(P.LFO_PITCH, value.coerceIn(0, 127) / 127f)
         }
@@ -137,6 +189,8 @@ class SynthViewModel : ViewModel() {
         a.put("steps", JSONArray().also { arr -> savedArp.steps.forEach { st -> arr.put(JSONObject().put("enabled",st.enabled).put("probability",st.probability).put("ratchets",st.ratchets).put("octave",st.octave).put("velocity",st.velocity).put("gate",st.gate).put("shift",st.shift)) } })
         a.put("routes", JSONArray().also { arr -> savedArp.routes.forEach { route -> arr.put(JSONObject().put("source",route.source).put("target",route.target).put("amount",route.amount).put("bipolar",route.bipolar)) } })
         root.put("arpeggiator", a)
+        root.put("fxParameters", JSONArray(fxValues.toList()))
+        root.put("fxUserPresets", JSONArray().also { arr -> fxUserPresets.forEach { preset -> arr.put(JSONObject().put("name", preset.name).put("values", JSONArray(preset.values))) } })
         return root.toString(2)
     }
 
@@ -160,6 +214,16 @@ class SynthViewModel : ViewModel() {
         val routeArray = a.optJSONArray("routes") ?: JSONArray()
         val routes = (0 until routeArray.length()).mapNotNull { i -> routeArray.optJSONObject(i)?.let { ArpModRoute(it.optString("source"),it.optInt("target"),it.optDouble("amount").toFloat(),it.optBoolean("bipolar")) } }
         arpConfig = ArpConfig(a.optBoolean("enabled",false),a.optBoolean("hold",false),a.optDouble("bpm",120.0).toFloat(),a.optInt("division",4),runCatching { ArpDirection.valueOf(a.optString("direction","UP")) }.getOrDefault(ArpDirection.UP),a.optInt("octaveRange",1),runCatching { ArpScale.valueOf(a.optString("scale","CHROMATIC")) }.getOrDefault(ArpScale.CHROMATIC),a.optInt("root",0),a.optInt("chordSize",1),a.optInt("strumMs",0),a.optInt("intervalShift",0),a.optBoolean("randomMode",false),a.optBoolean("evolve",false),a.optInt("loopLength",16),a.optDouble("humanize",0.0).toFloat(),steps,routes)
+        root.optJSONArray("fxParameters")?.let { array ->
+            if (array.length() == FxP.COUNT) for (i in 0 until array.length()) { fxValues[i] = array.getDouble(i).toFloat(); SynthEngine.nativeSetFxParam(i, fxValues[i]) }
+        }
+        root.optJSONArray("fxUserPresets")?.let { array ->
+            for (i in 0 until minOf(16, array.length())) {
+                val item = array.optJSONObject(i) ?: continue
+                val vals = item.optJSONArray("values") ?: continue
+                if (vals.length() == FxP.COUNT) fxUserPresets[i] = FxUserPreset(item.optString("name", "USER ${i+1}"), List(FxP.COUNT) { vals.getDouble(it).toFloat() })
+            }
+        }
         SynthEngine.nativeAllNotesOff(); pushAll(); arpeggiator.configure(arpConfig, autoStart = false)
     }
 
