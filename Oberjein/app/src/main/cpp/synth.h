@@ -237,7 +237,7 @@ private:
             v.dt1 = std::min(f1, maxF) / sr_;
             v.dt2 = std::min(f2, maxF) / sr_;
             v.pw = std::clamp(q.pwBase + 0.4f * lfo_ * q.lfoPwm, 0.05f, 0.95f);
-            const float envValue = q.fenvInvert > 0.5f ? (1.0f - v.fenv.level) : v.fenv.level;
+            const float envValue = q.fenvInvert > 0.5f ? -v.fenv.level : v.fenv.level;
             const float oct = q.cutOct + q.fenvAmt * envValue * 6.0f
                             + q.keytrack * (base - 60.0f) / 12.0f + q.lfoFilter * lfo_ * 2.0f;
             const float fc = std::clamp(20.0f * std::exp2(oct), 20.0f, 0.49f * sr_);
@@ -271,7 +271,8 @@ private:
         const float o2 = oscSample(p2mod, v.dt2, v.pw, q_.saw2, q_.pulse2);
         const float bright1 = o1 + q_.bright * (o1 - std::sin(2.0f * kPi * v.p1)) * 0.7f;
         const float bright2 = o2 + q_.bright * (o2 - std::sin(2.0f * kPi * v.p2)) * 0.7f;
-        const float mix = (bright1 * q_.l1 + bright2 * q_.l2 + noise() * q_.ln) * 0.7f;
+        const float mix = (bright1 * q_.l1 + bright2 * q_.l2 + noise() * q_.ln) * 0.7f
+                        + noise() * q_.selfOsc * 0.0004f;
         const float damping = std::max(0.025f, 2.0f - q_.k * 1.92f - q_.selfOsc * 1.75f);
         auto a = v.filter.process(mix, v.g, damping);
         a = v.filter.process(mix, v.g, damping); // 2x internal filter rate
