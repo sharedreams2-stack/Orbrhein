@@ -301,6 +301,8 @@ private:
             const bool was = v->active();
             v->note = note; v->gate = true; v->vel = vel; v->age = ++counter_;
             v->uniCents = 0.0f;
+            v->drift1 = (noise() * 2.0f - 1.0f) * (0.15f + q_.spread);
+            v->drift2 = (noise() * 2.0f - 1.0f) * (0.15f + q_.spread);
             v->tgtSemi = static_cast<float>(note);
             if (!was) v->curSemi = v->tgtSemi;
             v->fenv.gateOn(); v->aenv.gateOn();
