@@ -41,6 +41,7 @@ class MainActivity : ComponentActivity() {
         super.onStop()
         getSharedPreferences("oberjein_state", MODE_PRIVATE).edit().putString("current", vm.exportStateJson()).apply()
         vm.pauseArpeggiator()
+        vm.panic()
         SynthEngine.nativeAllNotesOff()
         SynthEngine.nativeStop()
         MidiBridge.detach(vm)
