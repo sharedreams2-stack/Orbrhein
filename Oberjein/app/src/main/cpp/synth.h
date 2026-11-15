@@ -334,7 +334,14 @@ private:
                 Voice& v = voices_[i];
                 if (v.gate && (!highest || v.note > highest->note)) highest = &v;
             }
-            return highest && note < highest->note ? highest : nullptr;
+            if (highest) return note < highest->note ? highest : nullptr;
+            // If every slot is in its release tail, reuse the oldest released voice.
+            Voice* released = nullptr;
+            for (int i = 0; i < q_.voiceCount; ++i) {
+                Voice& v = voices_[i];
+                if (!v.gate && (!released || v.age < released->age)) released = &v;
+            }
+            return released;
         }
         Voice* best = nullptr;
         for (int i = 0; i < q_.voiceCount; ++i) {
