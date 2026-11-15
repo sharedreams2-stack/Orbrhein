@@ -69,12 +69,12 @@ fun Knob(label: String, value: Float, onChange: (Float) -> Unit, modifier: Modif
 }
 
 @Composable
-fun Toggle(label: String, on: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+fun Toggle(label: String, on: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     Column(modifier.padding(horizontal = 2.dp, vertical = 3.dp).width(48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.fillMaxWidth().height(28.dp).clip(RoundedCornerShape(3.dp))
             .background(Brush.verticalGradient(listOf(Color(0xFF3A3D42), Color(0xFF17191D))))
-            .clickable { onChange(!on) }, contentAlignment = Alignment.Center) {
-            Text(if (on) "●" else "○", color = if (on) LedRed else Dim, fontSize = 11.sp)
+            .clickable(enabled = enabled) { onChange(!on) }, contentAlignment = Alignment.Center) {
+            Text(if (on) "●" else "○", color = if (!enabled) Dim else if (on) LedRed else Dim, fontSize = 11.sp)
         }
         Text(label, fontSize = 7.sp, color = Cream, fontWeight = FontWeight.Bold, maxLines = 1)
     }
