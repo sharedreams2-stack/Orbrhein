@@ -6,8 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -36,103 +36,78 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** Rotary knob, 0..1. Drag up/down to change. */
 @Composable
-fun Knob(
-    label: String,
-    value: Float,
-    onChange: (Float) -> Unit,
-    modifier: Modifier = Modifier,
-    diameter: Dp = 46.dp,
-) {
-    val tint = LocalTint.current
+fun Knob(label: String, value: Float, onChange: (Float) -> Unit, modifier: Modifier = Modifier, diameter: Dp = 42.dp) {
     val current by rememberUpdatedState(value)
     val callback by rememberUpdatedState(onChange)
-    Column(
-        modifier.width(diameter + 16.dp).padding(vertical = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Canvas(
-            Modifier.size(diameter).pointerInput(Unit) {
-                detectVerticalDragGestures { change, dragAmount ->
-                    change.consume()
-                    callback((current - dragAmount / 260f).coerceIn(0f, 1f))
-                }
+    Column(modifier.width(diameter + 12.dp).padding(vertical = 2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Canvas(Modifier.size(diameter).pointerInput(Unit) {
+            detectVerticalDragGestures { change, dragAmount ->
+                change.consume()
+                callback((current - dragAmount / 240f).coerceIn(0f, 1f))
             }
-        ) {
-            val stroke = 4.dp.toPx()
-            val topLeft = Offset(stroke, stroke)
-            val arc = Size(size.width - 2 * stroke, size.height - 2 * stroke)
-            val style = Stroke(stroke, cap = StrokeCap.Round)
-            drawArc(Track, 135f, 270f, false, topLeft, arc, style = style)
-            if (current > 0.005f) drawArc(tint, 135f, 270f * current, false, topLeft, arc, style = style)
-            val a = Math.toRadians((135f + 270f * current).toDouble())
-            val r = size.minDimension / 2f - stroke
-            val dir = Offset(cos(a).toFloat(), sin(a).toFloat())
-            drawLine(
-                Cream, center + dir * (r * 0.3f), center + dir * (r * 0.9f),
-                strokeWidth = 2.5.dp.toPx(), cap = StrokeCap.Round
-            )
+        }) {
+            val radius = size.minDimension * 0.43f
+            drawCircle(Brush.radialGradient(listOf(Color(0xFF73777D), Color(0xFF30343A), Color(0xFF111316)),
+                center = Offset(size.width * 0.35f, size.height * 0.28f), radius = size.minDimension * 0.78f), radius, center)
+            drawCircle(Color(0xFF08090B), radius, center, style = Stroke(1.2.dp.toPx()))
+            drawCircle(Color(0xFF777C82), radius * 0.82f, center, style = Stroke(0.8.dp.toPx()))
+            val topLeft = Offset(2.dp.toPx(), 2.dp.toPx())
+            val arcSize = Size(size.width - 4.dp.toPx(), size.height - 4.dp.toPx())
+            drawArc(Color(0xFF45494F), 135f, 270f, false, topLeft, arcSize, style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round))
+            drawArc(ElectricBlue, 135f, 270f * value, false, topLeft, arcSize, style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round))
+            val angle = Math.toRadians((135f + 270f * value).toDouble())
+            val dir = Offset(cos(angle).toFloat(), sin(angle).toFloat())
+            drawLine(Color(0xFFF4F0E8), center + dir * (radius * 0.20f), center + dir * (radius * 0.78f),
+                strokeWidth = 2.2.dp.toPx(), cap = StrokeCap.Round)
+            drawCircle(Color(0xFFBFC4CA), 1.5.dp.toPx(), center + dir * (radius * 0.78f))
         }
-        Text(label, fontSize = 10.sp, color = Dim, maxLines = 1)
+        Text(label, fontSize = 8.sp, color = Cream, fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
 
 @Composable
 fun Toggle(label: String, on: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    val tint = LocalTint.current
-    Box(
-        modifier.padding(2.dp).clip(RoundedCornerShape(4.dp))
-            .background(if (on) tint else Track)
-            .clickable { onChange(!on) }
-            .padding(horizontal = 10.dp, vertical = 7.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (on) Chassis else Dim)
+    Column(modifier.padding(horizontal = 2.dp, vertical = 3.dp).width(48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.fillMaxWidth().height(28.dp).clip(RoundedCornerShape(3.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFF3A3D42), Color(0xFF17191D))))
+            .clickable { onChange(!on) }, contentAlignment = Alignment.Center) {
+            Text(if (on) "●" else "○", color = if (on) LedRed else Dim, fontSize = 11.sp)
+        }
+        Text(label, fontSize = 7.sp, color = Cream, fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
 
-/** Tap to step through a short list of options. */
 @Composable
 fun CycleButton(label: String, options: List<String>, index: Int, onChange: (Int) -> Unit) {
-    val tint = LocalTint.current
-    Column(Modifier.width(62.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            Modifier.clip(RoundedCornerShape(4.dp)).background(Track)
-                .clickable { onChange((index + 1) % options.size) }
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(options[index], fontSize = 11.sp, fontWeight = FontWeight.Bold, color = tint)
+    Column(Modifier.width(54.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.fillMaxWidth().height(28.dp).clip(RoundedCornerShape(3.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFF45494E), Color(0xFF17191C))))
+            .clickable { onChange((index + 1) % options.size) }, contentAlignment = Alignment.Center) {
+            Text(options[index], color = ElectricBlue, fontSize = 9.sp, fontWeight = FontWeight.Black)
         }
-        Text(label, fontSize = 10.sp, color = Dim, modifier = Modifier.padding(top = 2.dp))
+        Text(label, fontSize = 7.sp, color = Cream, fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
 
 @Composable
 fun BarButton(label: String, onClick: () -> Unit) {
-    Box(
-        Modifier.padding(horizontal = 3.dp).clip(RoundedCornerShape(4.dp))
-            .background(Color(0x33000000))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Cream)
+    Box(Modifier.padding(horizontal = 2.dp).clip(RoundedCornerShape(3.dp))
+        .background(Color(0xFF292C30)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 5.dp),
+        contentAlignment = Alignment.Center) {
+        Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Cream)
     }
 }
 
-/** A panel section with a colored legend stripe; children pick up the stripe color. */
 @Composable
-fun Section(title: String, tint: Color, content: @Composable RowScope.() -> Unit) {
-    CompositionLocalProvider(LocalTint provides tint) {
-        Column(Modifier.padding(4.dp).clip(RoundedCornerShape(6.dp)).background(Panel)) {
-            Box(Modifier.fillMaxWidth().height(3.dp).background(tint))
-            Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
-                Text(title, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = tint)
-                Spacer(Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, content = content)
-            }
+fun Section(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    CompositionLocalProvider(LocalTint provides ElectricBlue) {
+        Column(modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp)).background(Panel).padding(horizontal = 7.dp, vertical = 5.dp)) {
+            Text(title, fontSize = 9.sp, fontWeight = FontWeight.Black, color = Cream, letterSpacing = 0.6.sp)
+            Spacer(Modifier.height(3.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(ElectricBlue))
+            Spacer(Modifier.height(5.dp))
+            content()
         }
     }
 }
