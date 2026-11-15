@@ -391,7 +391,7 @@ private:
             for (int i = 0; i < q_.uniVoices; ++i) {
                 Voice& v = voices_[i];
                 v.uniCents = (static_cast<float>(i) - (q_.uniVoices - 1) * 0.5f)
-                           / std::max(1.0f, (q_.uniVoices - 1) * 0.5f) * q_.uniSpread;
+                           / std::max(0.5f, (q_.uniVoices - 1) * 0.5f) * q_.uniSpread;
                 v.drift1 = (noise() * 2.0f - 1.0f) * (0.15f + q_.spread);
                 v.drift2 = (noise() * 2.0f - 1.0f) * (0.15f + q_.spread);
                 v.note = selected; v.gate = true; v.vel = vel; v.age = ++counter_;
