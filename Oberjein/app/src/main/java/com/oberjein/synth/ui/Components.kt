@@ -38,7 +38,7 @@ import kotlin.math.sin
 import kotlin.math.roundToInt
 
 @Composable
-fun Knob(label: String, value: Float, onChange: (Float) -> Unit, modifier: Modifier = Modifier, diameter: Dp = 42.dp) {
+fun Knob(label: String, value: Float, onChange: (Float) -> Unit, modifier: Modifier = Modifier, diameter: Dp = 42.dp, readout: String = "${(value * 100f).roundToInt()}%") {
     val current by rememberUpdatedState(value)
     val callback by rememberUpdatedState(onChange)
     Column(modifier.width(diameter + 12.dp).padding(vertical = 2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -63,7 +63,7 @@ fun Knob(label: String, value: Float, onChange: (Float) -> Unit, modifier: Modif
                 strokeWidth = 2.2.dp.toPx(), cap = StrokeCap.Round)
             drawCircle(Color(0xFFBFC4CA), 1.5.dp.toPx(), center + dir * (radius * 0.78f))
         }
-        Text("${(value * 100f).roundToInt()}%", fontSize = 7.sp, color = ElectricBlue, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(readout, fontSize = 7.sp, color = ElectricBlue, fontWeight = FontWeight.Bold, maxLines = 1)
         Text(label, fontSize = 8.sp, color = Cream, fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
