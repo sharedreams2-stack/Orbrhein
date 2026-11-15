@@ -49,7 +49,12 @@ object P {
     const val LFO2_PITCH = 44
     const val LFO2_FILTER = 45
     const val LFO2_PWM = 46
-    const val COUNT = 47
+    const val VOICE_COUNT = 47
+    const val UNI_VOICES = 48
+    const val VAM = 49
+    const val PERSISTENT_VOICING = 50
+    const val LEGATO = 51
+    const val COUNT = 52
 }
 
 /** All values are normalized 0..1 (switches are 0 or 1). The DSP maps them to real units. */
@@ -65,6 +70,8 @@ val DEFAULTS: FloatArray = FloatArray(P.COUNT).also {
     it[P.SPREAD] = 0.35f; it[P.XMOD] = 0f; it[P.BRIGHT] = 0f
     it[P.FILTER_MIX] = 0f; it[P.FILTER_MULTI] = 0f
     it[P.LFO2_RATE] = 0.25f
+    it[P.VOICE_COUNT] = 0.47f
+    it[P.UNI_VOICES] = 0.47f
 }
 
 class Preset(val name: String, val values: FloatArray)
