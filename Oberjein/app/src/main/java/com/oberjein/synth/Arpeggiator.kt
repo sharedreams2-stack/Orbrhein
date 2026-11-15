@@ -136,7 +136,8 @@ class Arpeggiator(private val onNoteOn: (Int, Float) -> Unit, private val onNote
                 val pitch = quantize(selected + config.intervalShift + step.shift, root, config.scale)
                 val chord = (0 until config.chordSize.coerceIn(1, 8)).map { pitch + config.scale.intervals.getOrElse(it) { 7 } }
                 val ratchets = step.ratchets.coerceIn(1, 8)
-                val duration = max(12L, (60000.0 / config.bpm / config.division * 1000.0 / ratchets * step.gate).toLong())
+                val stepMs = 60000.0 / config.bpm.coerceIn(30f, 300f) * 4.0 / config.division.coerceIn(1, 32)
+                val duration = max(12L, (stepMs / ratchets * step.gate).toLong())
                 chord.forEachIndexed { chordIndex, n ->
                     val shifted = (n + step.octave * 12).coerceIn(0, 127)
                     val startDelay = chordIndex * config.strumMs.toLong()
@@ -148,7 +149,7 @@ class Arpeggiator(private val onNoteOn: (Int, Float) -> Unit, private val onNote
                 }
                 if (ratchets > 1) {
                     for (r in 1 until ratchets) {
-                        val d = r * max(12L, duration / max(0.1f, step.gate))
+                        val d = (r * max(12.0, stepMs / ratchets)).toLong()
                         handler.postDelayed({ onNoteOn(pitch, step.velocity); activeNotes.add(pitch); handler.postDelayed({ onNoteOff(pitch); activeNotes.remove(pitch) }, duration) }, d)
                     }
                 }
