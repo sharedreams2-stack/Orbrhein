@@ -165,7 +165,7 @@ private:
         float l1 = 0, l2 = 0, ln = 0, semi2 = 0, det2 = 0, pwBase = 0.5f;
         float cutOct = 0, k = 0, fenvAmt = 0, keytrack = 0;
         float lfoPitch = 0, lfoFilter = 0, lfoPwm = 0;
-        float xmod = 0.0f, bright = 0.0f, spread = 0.0f;
+        float xmod = 0.0f, bright = 0.0f, spread = 0.0f, uniSpread = 0.0f;
         float glide = 1.0f, spread = 0, volume = 0, master = 0.4f;
         EnvCoef fe{}, ae{};
     };
@@ -201,7 +201,7 @@ private:
         q.lfoPitch = P(P_LFO_PITCH); q.lfoFilter = P(P_LFO_FILTER); q.lfoPwm = P(P_LFO_PWM);
         const float gt = P(P_PORTA) < 0.01f ? 0.0f : 0.01f * std::pow(300.0f, P(P_PORTA));
         q.glide = gt <= 0.0f ? 1.0f : 1.0f - std::exp(-kCtrlRate / (sr_ * gt / 3.0f));
-        const float unisonSpread = P(P_UNI_DETUNE) * 30.0f;
+        q.uniSpread = P(P_UNI_DETUNE) * 30.0f;
         q.volume = P(P_VOLUME);
         q.master = q.unison ? 0.4f : 0.7f;
         q.fe = coefs(P(P_F_A), P(P_F_D), P(P_F_S), P(P_F_R));
@@ -257,7 +257,9 @@ private:
             if (v.p2 >= 1.0f) v.p2 -= 1.0f;
         }
         const float o1 = oscSample(v.p1, v.dt1, v.pw, q_.saw1, q_.pulse1);
-        const float o2 = oscSample(v.p2 + o1 * q_.xmod * 0.12f, v.dt2, v.pw, q_.saw2, q_.pulse2);
+        float p2mod = v.p2 + o1 * q_.xmod * 0.12f;
+        p2mod -= std::floor(p2mod);
+        const float o2 = oscSample(p2mod, v.dt2, v.pw, q_.saw2, q_.pulse2);
         const float bright1 = o1 + q_.bright * (o1 - std::sin(2.0f * kPi * v.p1)) * 0.7f;
         const float bright2 = o2 + q_.bright * (o2 - std::sin(2.0f * kPi * v.p2)) * 0.7f;
         const float mix = (bright1 * q_.l1 + bright2 * q_.l2 + noise() * q_.ln) * 0.7f;
@@ -283,7 +285,9 @@ private:
             if (stackSize_ < static_cast<int>(stack_.size())) stack_[stackSize_++] = note;
             for (int i = 0; i < kNumVoices; ++i) {
                 Voice& v = voices_[i];
-                v.uniCents = (static_cast<float>(i) - 3.5f) / 3.5f * q_.spread;
+                v.uniCents = (static_cast<float>(i) - 3.5f) / 3.5f * q_.uniSpread;
+                v.drift1 = (noise() * 2.0f - 1.0f) * (0.15f + q_.spread);
+                v.drift2 = (noise() * 2.0f - 1.0f) * (0.15f + q_.spread);
                 v.note = note; v.gate = true; v.vel = vel; v.age = ++counter_;
                 v.tgtSemi = static_cast<float>(note);
                 if (wasEmpty || !v.active()) {
