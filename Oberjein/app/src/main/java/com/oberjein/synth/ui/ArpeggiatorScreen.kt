@@ -94,8 +94,12 @@ fun ArpeggiatorScreen(vm: SynthViewModel) {
             Text("Route sequencer sources to any exposed synth parameter.", color = Color.LightGray, fontSize = 9.sp)
             cfg.routes.forEachIndexed { index, route ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(route.source, color = ElectricBlue, fontSize = 9.sp, modifier = Modifier.weight(0.22f))
-                    Text(arpTargets.firstOrNull { it.first == route.target }?.second ?: "PARAM ${route.target}", color = Cream, fontSize = 9.sp, modifier = Modifier.weight(0.48f))
+                    Button(onClick = {
+                        val sources = listOf("STEP", "VELOCITY", "PROBABILITY", "RANDOM", "PITCH")
+                        val nextSource = sources[(sources.indexOf(route.source).coerceAtLeast(0) + 1) % sources.size]
+                        vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it[index] = route.copy(source = nextSource) }) }
+                    }, colors = ButtonDefaults.buttonColors(containerColor = WalnutDark), modifier = Modifier.weight(0.34f)) { Text(route.source, fontSize = 8.sp) }
+                    Text(arpTargets.firstOrNull { it.first == route.target }?.second ?: "PARAM ${route.target}", color = Cream, fontSize = 9.sp, modifier = Modifier.weight(0.40f))
                     Text("${(route.amount*100).toInt()}%", color = Cream, fontSize = 9.sp)
                     Button(onClick = { vm.updateArp { c -> c.copy(routes = c.routes.toMutableList().also { it.removeAt(index) }) } }) { Text("×") }
                 }
