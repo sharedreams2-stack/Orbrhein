@@ -103,8 +103,8 @@ class SynthViewModel : ViewModel() {
     // Safe to call from any thread (MIDI input uses these).
     fun noteOn(note: Int, velocity: Float) = arpeggiator.noteOn(note, velocity)
     fun noteOff(note: Int) = arpeggiator.noteOff(note)
-    fun midiNoteOn(note: Int, velocity: Float) = arpeggiator.noteOn(note, velocity)
-    fun midiNoteOff(note: Int) = arpeggiator.noteOff(note)
+    fun midiNoteOn(note: Int, velocity: Float) { if (arpConfig.enabled) arpeggiator.noteOn(note, velocity) else SynthEngine.nativeNoteOn(note, velocity) }
+    fun midiNoteOff(note: Int) { if (arpConfig.enabled) arpeggiator.noteOff(note) else SynthEngine.nativeNoteOff(note) }
     fun resumeArpeggiator() { if (arpConfig.enabled) arpeggiator.start() }
     fun pauseArpeggiator() { arpeggiator.stop() }
     fun pitchBend(value: Float) = SynthEngine.nativePitchBend(value)
@@ -149,7 +149,7 @@ class SynthViewModel : ViewModel() {
         val routeArray = a.optJSONArray("routes") ?: JSONArray()
         val routes = (0 until routeArray.length()).mapNotNull { i -> routeArray.optJSONObject(i)?.let { ArpModRoute(it.optString("source"),it.optInt("target"),it.optDouble("amount").toFloat(),it.optBoolean("bipolar")) } }
         arpConfig = ArpConfig(a.optBoolean("enabled",false),a.optBoolean("hold",false),a.optDouble("bpm",120.0).toFloat(),a.optInt("division",4),runCatching { ArpDirection.valueOf(a.optString("direction","UP")) }.getOrDefault(ArpDirection.UP),a.optInt("octaveRange",1),runCatching { ArpScale.valueOf(a.optString("scale","CHROMATIC")) }.getOrDefault(ArpScale.CHROMATIC),a.optInt("root",0),a.optInt("chordSize",1),a.optInt("strumMs",0),a.optInt("intervalShift",0),a.optBoolean("randomMode",false),a.optBoolean("evolve",false),a.optInt("loopLength",16),a.optDouble("humanize",0.0).toFloat(),steps,routes)
-        SynthEngine.nativeAllNotesOff(); pushAll(); arpeggiator.configure(arpConfig); if (arpConfig.enabled) arpeggiator.start()
+        SynthEngine.nativeAllNotesOff(); pushAll(); arpeggiator.configure(arpConfig)
     }
 
 }
