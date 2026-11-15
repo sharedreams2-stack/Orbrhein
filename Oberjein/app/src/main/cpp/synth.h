@@ -273,11 +273,15 @@ private:
         const float bright2 = o2 + q_.bright * (o2 - std::sin(2.0f * kPi * v.p2)) * 0.7f;
         const float mix = (bright1 * q_.l1 + bright2 * q_.l2 + noise() * q_.ln) * 0.7f;
         const float damping = std::max(0.025f, 2.0f - q_.k * 1.92f - q_.selfOsc * 1.75f);
-        const auto a = v.filter.process(mix, v.g, damping);
+        auto a = v.filter.process(mix, v.g, damping);
+        a = v.filter.process(mix, v.g, damping); // 2x internal filter rate
         float y;
         if (q_.lp24) {
-            const auto b = v.filter2.process(a.lp, v.g, damping);
-            v.lp6 += (mix - v.lp6) * (v.g / (1.0f + v.g));
+            auto b = v.filter2.process(a.lp, v.g, damping);
+            b = v.filter2.process(a.lp, v.g, damping);
+            const float onePole = v.g / (1.0f + v.g);
+            v.lp6 += (mix - v.lp6) * onePole;
+            v.lp6 += (mix - v.lp6) * onePole;
             const float slope = q_.multi;
             y = b.lp * (1.0f - slope) + v.lp6 * slope;
         } else {
