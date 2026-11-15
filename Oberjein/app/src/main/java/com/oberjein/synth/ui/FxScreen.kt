@@ -121,7 +121,7 @@ fun FxScreen(vm: SynthViewModel) {
                 FxButton("STOP / FADE") { vm.fxLooperCommand(0) }
                 FxButton("ERASE") { vm.fxLooperCommand(4) }
             }
-            Text(when (vm.fxLoopState) { 1 -> "RECORDING"; 2 -> "PLAYBACK"; else -> "STOPPED" }, color = ElectricBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Text(when (vm.fxLoopState) { 1 -> "RECORDING • PRESS REC OR STOP TO FINISH"; 2 -> "PLAYBACK"; 3 -> "OVERDUB"; else -> "STOPPED" }, color = ElectricBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             FxSlider("LOOP LEVEL", v[FxP.LOOP_LEVEL], 0f..1f, { vm.setFx(FxP.LOOP_LEVEL, it) }, "%.0f%%", 100f)
             Text("REC captures the post-effect stereo output. DUB records one overdub pass. STOP applies the configured fade; ERASE clears the loop immediately.", color = Color.LightGray, fontSize = 9.sp)
         }
