@@ -25,12 +25,34 @@ import com.oberjein.synth.P
 import com.oberjein.synth.PRESETS
 import com.oberjein.synth.SynthViewModel
 import kotlin.math.roundToInt
+import kotlin.math.pow
+import kotlin.math.log10
+import kotlin.math.max
+import java.util.Locale
 
 private val LFO_SHAPES = listOf("SINE", "TRI", "SAW", "SQUARE", "S&H")
 
 @Composable
 private fun K(vm: SynthViewModel, id: Int, label: String) {
-    Knob(label, vm.values[id], { vm.set(id, it) })
+    val value = vm.values[id]
+    val readout = when (id) {
+        P.CUTOFF -> String.format(Locale.US, "%.0f Hz", 20.0 * 2.0.pow(value.toDouble() * 9.81))
+        P.RESO -> String.format(Locale.US, "Q %.1f", 1.0 / max(0.025, 2.0 - value.toDouble() * 1.92))
+        P.F_A, P.F_D, P.F_R, P.A_A, P.A_D, P.A_R -> {
+            val seconds = 0.001 * 10.0.pow(value.toDouble() * 4.0)
+            if (seconds < 1.0) String.format(Locale.US, "%.0f ms", seconds * 1000.0)
+            else String.format(Locale.US, "%.1f s", seconds)
+        }
+        P.VOLUME -> String.format(Locale.US, "%.1f dB", 20.0 * log10(max(0.0001, value.toDouble())))
+        P.VCO2_SEMI -> String.format(Locale.US, "%+d st", ((value - 0.5f) * 24f).roundToInt())
+        P.VCO2_DETUNE -> String.format(Locale.US, "%.1f ct", value * 100f)
+        P.SPREAD -> String.format(Locale.US, "%.1f ct", value * 8f)
+        P.UNI_DETUNE -> String.format(Locale.US, "%.1f ct", value * 30f)
+        P.LFO_RATE, P.LFO2_RATE -> String.format(Locale.US, "%.2f Hz", 0.1 * 300.0.pow(value.toDouble()))
+        P.PORTA -> if (value < 0.01f) "OFF" else String.format(Locale.US, "%.0f ms", 10.0 * 300.0.pow(value.toDouble()))
+        else -> String.format(Locale.US, "%.0f%%", value * 100f)
+    }
+    Knob(label, value, { vm.set(id, it) }, readout = readout)
 }
 
 @Composable
@@ -101,15 +123,26 @@ fun MainScreen(vm: SynthViewModel) {
                         K(vm, P.SELF_OSC, "SELF OSC")
                     }
                 }
-                Section("MODULATION", Modifier.weight(0.45f)) {
+                Section("DUAL MODULATION", Modifier.weight(0.45f)) {
+                    Text("LFO 1", color = ElectricBlue, fontSize = 7.sp, fontWeight = FontWeight.Black)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        K(vm, P.LFO_RATE, "LFO RATE")
-                        K(vm, P.LFO_PITCH, "FREQ AMT")
-                        K(vm, P.LFO_PWM, "PW AMT")
-                        CycleButton("LFO SHAPE", LFO_SHAPES, (vm.values[P.LFO_WAVE] * 4f).roundToInt().coerceIn(0, 4)) {
+                        K(vm, P.LFO_RATE, "RATE")
+                        K(vm, P.LFO_PITCH, "PITCH")
+                        K(vm, P.LFO_PWM, "PW")
+                        CycleButton("WAVE", LFO_SHAPES, (vm.values[P.LFO_WAVE] * 4f).roundToInt().coerceIn(0, 4)) {
                             vm.set(P.LFO_WAVE, it / 4f)
                         }
                         K(vm, P.LFO_FILTER, "FILTER")
+                    }
+                    Text("LFO 2", color = ElectricBlue, fontSize = 7.sp, fontWeight = FontWeight.Black)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        K(vm, P.LFO2_RATE, "RATE")
+                        K(vm, P.LFO2_PITCH, "PITCH")
+                        K(vm, P.LFO2_PWM, "PW")
+                        CycleButton("WAVE", LFO_SHAPES, (vm.values[P.LFO2_WAVE] * 4f).roundToInt().coerceIn(0, 4)) {
+                            vm.set(P.LFO2_WAVE, it / 4f)
+                        }
+                        K(vm, P.LFO2_FILTER, "FILTER")
                     }
                 }
             }
