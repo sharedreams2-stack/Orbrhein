@@ -92,7 +92,7 @@ fun MainScreen(vm: SynthViewModel) {
                         K(vm, P.RESO, "RESONANCE")
                         K(vm, P.FENV_AMT, "ENV AMT")
                         K(vm, P.KEYTRACK, "KEY")
-                        K(vm, P.FILTER_MIX, "MIX")
+                        K(vm, P.FILTER_MIX, "FILTER MIX")
                         K(vm, P.FILTER_MULTI, "SLOPE")
                         T(vm, P.LP24, "LP24")
                         T(vm, P.FILTER_BP, "BP")
