@@ -9,7 +9,7 @@
 
 namespace ob {
 
-constexpr int kNumVoices = 8;
+constexpr int kNumVoices = 16;
 constexpr int kCtrlRate = 16;  // control-rate tick, in samples
 constexpr float kPi = 3.14159265358979323846f;
 
@@ -26,6 +26,7 @@ enum Param : int {
     P_SPREAD, P_XMOD, P_BRIGHT,
     P_FILTER_MIX, P_FILTER_BP, P_LP24, P_FILTER_MULTI, P_FENV_INVERT, P_SELF_OSC,
     P_LFO2_RATE, P_LFO2_WAVE, P_LFO2_PITCH, P_LFO2_FILTER, P_LFO2_PWM,
+    P_VOICE_COUNT, P_UNI_VOICES, P_VAM, P_PERSISTENT_VOICING, P_LEGATO,
     P_COUNT
 };
 
@@ -124,7 +125,7 @@ class Synth {
 public:
     Synth() {
         for (int i = 0; i < kNumVoices; ++i) {
-            const float pan = (static_cast<float>(i) - 3.5f) / 3.5f * 0.35f;
+            const float pan = (static_cast<float>(i) - 7.5f) / 7.5f * 0.35f;
             voices_[i].gl = std::cos((pan + 1.0f) * kPi / 4.0f);
             voices_[i].gr = std::sin((pan + 1.0f) * kPi / 4.0f);
         }
@@ -173,7 +174,8 @@ private:
         float xmod = 0.0f, bright = 0.0f, spread = 0.0f, uniSpread = 0.0f;
         float filterMix = 0.0f, multi = 0.0f, fenvInvert = 0.0f, selfOsc = 0.0f;
         float glide = 1.0f, volume = 0, master = 0.4f;
-        bool bp = false, lp24 = false;
+        bool bp = false, lp24 = false, persistent = false;
+        int voiceCount = 8, uniVoices = 8, vam = 0, legato = 0;
         EnvCoef fe{}, ae{};
     };
 
@@ -193,6 +195,11 @@ private:
         q.saw2 = P(P_VCO2_SAW) > 0.5f;   q.pulse2 = P(P_VCO2_PULSE) > 0.5f;
         q.sync = P(P_SYNC) > 0.5f;       q.lp24 = P(P_LP24) > 0.5f;
         q.bp = P(P_FILTER_BP) > 0.5f && !q.lp24;
+        q.voiceCount = std::clamp(1 + static_cast<int>(std::lround(P(P_VOICE_COUNT) * 15.0f)), 1, kNumVoices);
+        q.uniVoices = std::clamp(1 + static_cast<int>(std::lround(P(P_UNI_VOICES) * 15.0f)), 1, kNumVoices);
+        q.vam = P(P_VAM) > 0.5f ? 1 : 0;
+        q.persistent = P(P_PERSISTENT_VOICING) > 0.5f;
+        q.legato = std::clamp(static_cast<int>(std::lround(P(P_LEGATO) * 3.0f)), 0, 3);
         q.filterMix = P(P_FILTER_MIX); q.multi = P(P_FILTER_MULTI);
         q.fenvInvert = P(P_FENV_INVERT); q.selfOsc = P(P_SELF_OSC);
         const bool uni = P(P_UNISON) > 0.5f;
@@ -269,7 +276,7 @@ private:
     float tickVoice(Voice& v) {
         v.fenv.tick(q_.fe);
         const float ae = v.aenv.tick(q_.ae);
-        if (!v.active()) { v.filter.reset(); v.filter2.reset(); v.lp6 = 0.0f; v.note = -1; v.gate = false; return 0.0f; }
+        if (!v.active()) { if (!q_.persistent) { v.filter.reset(); v.filter2.reset(); v.lp6 = 0.0f; } v.note = -1; v.gate = false; return 0.0f; }
 
         v.p1 += v.dt1;
         const bool wrapped = v.p1 >= 1.0f;
@@ -316,23 +323,58 @@ private:
 
     // ---- voice allocation ----
     Voice* pickVoice(int note) {
-        for (auto& v : voices_) if (v.note == note && v.active()) return &v;
-        for (auto& v : voices_) if (!v.active()) return &v;
+        for (int i = 0; i < q_.voiceCount; ++i)
+            if (voices_[i].note == note && voices_[i].active()) return &voices_[i];
+        for (int i = 0; i < q_.voiceCount; ++i)
+            if (!voices_[i].active()) return &voices_[i];
+        if (q_.vam == 1) {
+            // Low-note priority: keep the lowest currently held notes.
+            Voice* highest = nullptr;
+            for (int i = 0; i < q_.voiceCount; ++i) {
+                Voice& v = voices_[i];
+                if (v.gate && (!highest || v.note > highest->note)) highest = &v;
+            }
+            return highest && note < highest->note ? highest : nullptr;
+        }
         Voice* best = nullptr;
-        for (auto& v : voices_) if (!v.gate && (!best || v.age < best->age)) best = &v;
+        for (int i = 0; i < q_.voiceCount; ++i) {
+            Voice& v = voices_[i];
+            if (!v.gate && (!best || v.age < best->age)) best = &v;
+        }
         if (best) return best;
-        for (auto& v : voices_) if (!best || v.age < best->age) best = &v;
+        for (int i = 0; i < q_.voiceCount; ++i)
+            if (!best || voices_[i].age < best->age) best = &voices_[i];
         return best;
     }
 
     void handleNoteOn(int note, float vel) {
+        if (q_.legato > 0) {
+            // Legato is a one-voice priority mode with an ordered held-note stack.
+            const bool was = voices_[0].active() && voices_[0].gate;
+            removeFromStack(note);
+            if (stackSize_ < static_cast<int>(stack_.size())) stack_[stackSize_++] = note;
+            const int selected = q_.vam == 1
+                ? *std::min_element(stack_.begin(), stack_.begin() + stackSize_)
+                : stack_[stackSize_ - 1];
+            Voice& v = voices_[0];
+            v.note = selected; v.gate = true; v.vel = vel; v.age = ++counter_;
+            v.uniCents = 0.0f;
+            v.drift1 = (noise() * 2.0f - 1.0f) * (0.15f + q_.spread);
+            v.drift2 = (noise() * 2.0f - 1.0f) * (0.15f + q_.spread);
+            v.tgtSemi = static_cast<float>(selected);
+            if (!was) v.curSemi = v.tgtSemi;
+            if (!was || (q_.legato & 1) == 0) v.fenv.gateOn();
+            if (!was || (q_.legato & 2) == 0) v.aenv.gateOn();
+            return;
+        }
         if (q_.unison) {
             const bool wasEmpty = stackSize_ == 0;
             removeFromStack(note);
             if (stackSize_ < static_cast<int>(stack_.size())) stack_[stackSize_++] = note;
-            for (int i = 0; i < kNumVoices; ++i) {
+            for (int i = 0; i < q_.uniVoices; ++i) {
                 Voice& v = voices_[i];
-                v.uniCents = (static_cast<float>(i) - 3.5f) / 3.5f * q_.uniSpread;
+                v.uniCents = (static_cast<float>(i) - (q_.uniVoices - 1) * 0.5f)
+                           / std::max(1.0f, (q_.uniVoices - 1) * 0.5f) * q_.uniSpread;
                 v.drift1 = (noise() * 2.0f - 1.0f) * (0.15f + q_.spread);
                 v.drift2 = (noise() * 2.0f - 1.0f) * (0.15f + q_.spread);
                 v.note = note; v.gate = true; v.vel = vel; v.age = ++counter_;
@@ -341,6 +383,10 @@ private:
                     v.curSemi = v.tgtSemi;
                     v.fenv.gateOn(); v.aenv.gateOn();
                 }
+            }
+            for (int i = q_.uniVoices; i < kNumVoices; ++i) {
+                voices_[i].gate = false;
+                voices_[i].fenv.gateOff(); voices_[i].aenv.gateOff();
             }
         } else {
             Voice* v = pickVoice(note);
@@ -357,10 +403,24 @@ private:
     }
 
     void handleNoteOff(int note) {
-        if (q_.unison) {
+        if (q_.legato > 0) {
+            removeFromStack(note);
+            Voice& v = voices_[0];
+            if (stackSize_ == 0) {
+                v.gate = false; v.fenv.gateOff(); v.aenv.gateOff();
+                return;
+            }
+            const int selected = q_.vam == 1
+                ? *std::min_element(stack_.begin(), stack_.begin() + stackSize_)
+                : stack_[stackSize_ - 1];
+            v.note = selected; v.tgtSemi = static_cast<float>(selected); v.gate = true;
+        } else if (q_.unison) {
             removeFromStack(note);
             if (stackSize_ == 0) { releaseAll(); return; }
-            for (auto& v : voices_) { v.note = stack_[stackSize_ - 1]; v.tgtSemi = static_cast<float>(v.note); }
+            for (int i = 0; i < q_.uniVoices; ++i) {
+                voices_[i].note = stack_[stackSize_ - 1];
+                voices_[i].tgtSemi = static_cast<float>(voices_[i].note);
+            }
         } else {
             for (auto& v : voices_)
                 if (v.note == note && v.gate) { v.gate = false; v.fenv.gateOff(); v.aenv.gateOff(); }
