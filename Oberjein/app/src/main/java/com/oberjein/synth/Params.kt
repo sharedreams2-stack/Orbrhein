@@ -35,7 +35,10 @@ object P {
     const val UNISON = 30
     const val UNI_DETUNE = 31
     const val VOLUME = 32
-    const val COUNT = 33
+    const val SPREAD = 33
+    const val XMOD = 34
+    const val BRIGHT = 35
+    const val COUNT = 36
 }
 
 /** All values are normalized 0..1 (switches are 0 or 1). The DSP maps them to real units. */
@@ -48,6 +51,7 @@ val DEFAULTS: FloatArray = FloatArray(P.COUNT).also {
     it[P.A_A] = 0.02f; it[P.A_D] = 0.5f; it[P.A_S] = 0.8f; it[P.A_R] = 0.35f
     it[P.LFO_RATE] = 0.4f
     it[P.UNI_DETUNE] = 0.3f; it[P.VOLUME] = 0.7f
+    it[P.SPREAD] = 0.35f; it[P.XMOD] = 0f; it[P.BRIGHT] = 0f
 }
 
 class Preset(val name: String, val values: FloatArray)
