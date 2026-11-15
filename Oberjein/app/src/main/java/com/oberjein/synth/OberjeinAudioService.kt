@@ -41,6 +41,10 @@ class OberjeinAudioService : Service() {
             return START_NOT_STICKY
         }
         val activeVm = MidiBridge.currentViewModel()
+        if (activeVm != null) {
+            activeVm.pushAll()
+            activeVm.resumeArpeggiator()
+        }
         if (activeVm != null && midiViewModel !== activeVm) {
             midiInput?.stop()
             midiInput = MidiInput(this, activeVm).also { it.start() }
