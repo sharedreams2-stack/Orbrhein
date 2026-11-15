@@ -43,6 +43,7 @@ class OberjeinAudioService : Service() {
         val activeVm = MidiBridge.currentViewModel()
         if (activeVm != null) {
             activeVm.pushAll()
+            activeVm.pushFxAll()
             activeVm.resumeArpeggiator()
         }
         if (activeVm != null && midiViewModel !== activeVm) {
