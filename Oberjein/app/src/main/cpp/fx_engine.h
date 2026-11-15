@@ -273,7 +273,7 @@ public:
         }
         if (loopPlaying_ && loopLength_ > 0) {
             const float length = static_cast<float>(loopLength_);
-            float pos = param(REVERSE) > 0.5f ? length - loopReadPos_ : loopReadPos_;
+            float pos = loopReadPos_;
             pos = std::fmod(pos, length); if (pos < 0.0f) pos += length;
             const size_t i0 = static_cast<size_t>(pos) % loopLength_;
             const size_t i1 = (i0 + 1) % loopLength_;
