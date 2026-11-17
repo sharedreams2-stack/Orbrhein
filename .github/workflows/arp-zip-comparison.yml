@@ -44,6 +44,16 @@ jobs:
           echo "ZIP project extracted to $PROJECT_DIR"
           find "$PROJECT_DIR/app/src/main" -maxdepth 3 -type f | sort | head -100
 
+      - name: Apply Android MIDI compatibility fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          MIDI_FILE="$PROJECT_DIR/app/src/main/java/com/oberjein/synth/MidiIo.kt"
+          # PROPERTY_SERVICE_INFO is not exposed by the compile SDK used by this project.
+          # The Android MIDI service stores this parcelable under the stable "service_info" key.
+          sed -i 's/MidiDeviceInfo\.PROPERTY_SERVICE_INFO/"service_info"/' "$MIDI_FILE"
+          grep -n 'getParcelable<ServiceInfo>' "$MIDI_FILE"
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
